@@ -21,7 +21,8 @@ public:
     };
 
     Size size() const;
-    void lock_size(int width, int height);
+    void set_title(const char* title);
+    void start_text_input();
     SDL_Window* get() const { return window_; }
 
 private:

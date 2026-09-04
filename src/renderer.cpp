@@ -39,11 +39,17 @@ void Renderer::set_draw_color(Uint8 r, Uint8 g, Uint8 b, Uint8 a) const {
 
 void Renderer::clear() const { SDL_RenderClear(renderer_); }
 
+void Renderer::fill_rect(const SDL_FRect& rect) const { SDL_RenderFillRect(renderer_, &rect); }
+
+void Renderer::set_clip(const SDL_Rect* rect) const { SDL_SetRenderClipRect(renderer_, rect); }
+
 void Renderer::copy(const Texture& texture, const SDL_FRect* src, const SDL_FRect* dst) const {
     SDL_RenderTexture(renderer_, texture.get(), src, dst);
 }
 
 void Renderer::present() const { SDL_RenderPresent(renderer_); }
+
+void Renderer::set_vsync(int vsync) const { SDL_SetRenderVSync(renderer_, vsync); }
 
 Renderer::Size Renderer::output_size() const {
     Size out;

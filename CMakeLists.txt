@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(sdl_image_viewer LANGUAGES C CXX)
+project(sdl_text_editor LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -26,18 +26,14 @@ set(SDL_TESTS OFF CACHE BOOL "" FORCE)
 set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
 set(SDL_DISABLE_INSTALL ON CACHE BOOL "" FORCE)
 
-set(SDLIMAGE_VENDORED OFF CACHE BOOL "" FORCE)
-set(SDLIMAGE_SAMPLES OFF CACHE BOOL "" FORCE)
-set(SDLIMAGE_TESTS OFF CACHE BOOL "" FORCE)
-set(SDLIMAGE_INSTALL OFF CACHE BOOL "" FORCE)
-set(SDLIMAGE_BACKEND_STB ON CACHE BOOL "" FORCE)
-set(SDLIMAGE_PNG_LIBPNG OFF CACHE BOOL "" FORCE)
-set(SDLIMAGE_AVIF OFF CACHE BOOL "" FORCE)
-set(SDLIMAGE_JXL OFF CACHE BOOL "" FORCE)
-set(SDLIMAGE_TIF OFF CACHE BOOL "" FORCE)
-set(SDLIMAGE_WEBP OFF CACHE BOOL "" FORCE)
-if(APPLE)
-    set(SDLIMAGE_BACKEND_IMAGEIO ON CACHE BOOL "" FORCE)
+set(SDLTTF_VENDORED OFF CACHE BOOL "" FORCE)
+set(SDLTTF_SAMPLES OFF CACHE BOOL "" FORCE)
+set(SDLTTF_INSTALL OFF CACHE BOOL "" FORCE)
+set(SDLTTF_PLUTOSVG OFF CACHE BOOL "" FORCE)
+set(SDLTTF_HARFBUZZ OFF CACHE BOOL "" FORCE)
+
+if(APPLE AND EXISTS /opt/homebrew)
+    list(APPEND CMAKE_PREFIX_PATH /opt/homebrew)
 endif()
 
 FetchContent_Declare(SDL3
@@ -48,39 +44,54 @@ FetchContent_Declare(SDL3
 )
 FetchContent_MakeAvailable(SDL3)
 
-FetchContent_Declare(SDL3_image
-    GIT_REPOSITORY https://github.com/libsdl-org/SDL_image.git
-    GIT_TAG release-3.4.6
+FetchContent_Declare(SDL3_ttf
+    GIT_REPOSITORY https://github.com/libsdl-org/SDL_ttf.git
+    GIT_TAG release-3.2.2
     GIT_SHALLOW TRUE
     GIT_SUBMODULES ""
     EXCLUDE_FROM_ALL
 )
-FetchContent_MakeAvailable(SDL3_image)
+FetchContent_MakeAvailable(SDL3_ttf)
 
-add_executable(view_image
+add_executable(editor
     src/main.cpp
     src/app.cpp
+    src/document.cpp
+    src/explorer.cpp
+    src/syntax.cpp
+    src/terminal.cpp
+    src/font.cpp
     src/surface.cpp
     src/window.cpp
     src/renderer.cpp
     src/texture.cpp
 )
-target_include_directories(view_image PRIVATE src)
+target_include_directories(editor PRIVATE src)
 
-if(TARGET SDL3_image::SDL3_image-static)
-    target_link_libraries(view_image PRIVATE SDL3_image::SDL3_image-static)
+if(TARGET SDL3_ttf::SDL3_ttf-static)
+    target_link_libraries(editor PRIVATE SDL3_ttf::SDL3_ttf-static)
 else()
-    target_link_libraries(view_image PRIVATE SDL3_image::SDL3_image)
+    target_link_libraries(editor PRIVATE SDL3_ttf::SDL3_ttf)
 endif()
 
 if(TARGET SDL3::SDL3-static)
-    target_link_libraries(view_image PRIVATE SDL3::SDL3-static)
+    target_link_libraries(editor PRIVATE SDL3::SDL3-static)
 else()
-    target_link_libraries(view_image PRIVATE SDL3::SDL3)
+    target_link_libraries(editor PRIVATE SDL3::SDL3)
 endif()
 
+add_custom_command(TARGET editor POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:editor>/fonts
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_SOURCE_DIR}/assets/fonts/jetbrains-mono-medium.ttf
+        $<TARGET_FILE_DIR:editor>/fonts/jetbrains-mono-medium.ttf
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_SOURCE_DIR}/assets/fonts/jetbrains-mono-regular.ttf
+        $<TARGET_FILE_DIR:editor>/fonts/jetbrains-mono-regular.ttf
+)
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(view_image PRIVATE
+    target_compile_options(editor PRIVATE
         -Wall -Wextra -Wpedantic
         $<$<CONFIG:Release>:-O3 -fno-rtti>
     )

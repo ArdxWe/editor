@@ -6,7 +6,7 @@ namespace sdl {
 
 class Surface {
 public:
-    explicit Surface(const char* path);
+    explicit Surface(SDL_Surface* raw);
     ~Surface();
 
     Surface(const Surface&) = delete;

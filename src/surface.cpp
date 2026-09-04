@@ -2,13 +2,11 @@
 
 #include "error.hpp"
 
-#include <SDL3_image/SDL_image.h>
-
 namespace sdl {
 
-Surface::Surface(const char* path) : surface_(IMG_Load(path)) {
+Surface::Surface(SDL_Surface* raw) : surface_(raw) {
     if (!surface_) {
-        throw_error("IMG_Load");
+        throw_error("SDL_Surface");
     }
 }
 

@@ -38,4 +38,18 @@ void Texture::set_scale_mode(SDL_ScaleMode mode) const {
     SDL_SetTextureScaleMode(texture_, mode);
 }
 
+float Texture::width() const {
+    float w = 0;
+    float h = 0;
+    SDL_GetTextureSize(texture_, &w, &h);
+    return w;
+}
+
+float Texture::height() const {
+    float w = 0;
+    float h = 0;
+    SDL_GetTextureSize(texture_, &w, &h);
+    return h;
+}
+
 }  // namespace sdl

@@ -19,6 +19,8 @@ public:
     Texture& operator=(Texture&& other) noexcept;
 
     void set_scale_mode(SDL_ScaleMode mode) const;
+    float width() const;
+    float height() const;
     SDL_Texture* get() const { return texture_; }
 
 private:

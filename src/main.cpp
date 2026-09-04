@@ -6,13 +6,9 @@
 #include <iostream>
 
 int main(int argc, char* argv[]) {
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <image>\n";
-        return EXIT_FAILURE;
-    }
-
+    const char* path = argc >= 2 ? argv[1] : ".";
     try {
-        sdl::App app{argv[1]};
+        sdl::App app{path};
         app.run();
     } catch (const std::exception& ex) {
         std::cerr << ex.what() << '\n';

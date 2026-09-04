@@ -25,8 +25,11 @@ public:
 
     void set_draw_color(Uint8 r, Uint8 g, Uint8 b, Uint8 a) const;
     void clear() const;
+    void fill_rect(const SDL_FRect& rect) const;
+    void set_clip(const SDL_Rect* rect) const;
     void copy(const Texture& texture, const SDL_FRect* src, const SDL_FRect* dst) const;
     void present() const;
+    void set_vsync(int vsync) const;
     Size output_size() const;
     SDL_Renderer* get() const { return renderer_; }
 
