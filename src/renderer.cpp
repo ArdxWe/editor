@@ -45,4 +45,10 @@ void Renderer::copy(const Texture& texture, const SDL_FRect* src, const SDL_FRec
 
 void Renderer::present() const { SDL_RenderPresent(renderer_); }
 
+Renderer::Size Renderer::output_size() const {
+    Size out;
+    SDL_GetRenderOutputSize(renderer_, &out.w, &out.h);
+    return out;
+}
+
 }  // namespace sdl

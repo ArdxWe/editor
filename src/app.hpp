@@ -19,8 +19,6 @@ private:
     Window window_;
     Renderer renderer_;
     Texture texture_;
-    float tex_w_ = 0;
-    float tex_h_ = 0;
 };
 
 }  // namespace sdl

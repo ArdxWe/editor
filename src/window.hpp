@@ -21,6 +21,7 @@ public:
     };
 
     Size size() const;
+    void lock_size(int width, int height);
     SDL_Window* get() const { return window_; }
 
 private:

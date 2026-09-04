@@ -38,4 +38,10 @@ Window::Size Window::size() const {
     return out;
 }
 
+void Window::lock_size(int width, int height) {
+    SDL_SetWindowResizable(window_, false);
+    SDL_SetWindowMinimumSize(window_, width, height);
+    SDL_SetWindowMaximumSize(window_, width, height);
+}
+
 }  // namespace sdl
