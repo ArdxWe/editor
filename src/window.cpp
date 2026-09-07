@@ -6,44 +6,46 @@ namespace sdl {
 
 Window::Window(const char* title, int width, int height, SDL_WindowFlags flags)
     : window_(SDL_CreateWindow(title, width, height, flags)) {
-    if (!window_) {
-        throw_error("SDL_CreateWindow");
-    }
+  if (!window_) {
+    throw_error("SDL_CreateWindow");
+  }
 }
 
 Window::~Window() {
-    if (window_) {
-        SDL_DestroyWindow(window_);
-    }
+  if (window_) {
+    SDL_DestroyWindow(window_);
+  }
 }
 
 Window::Window(Window&& other) noexcept : window_(other.window_) {
-    other.window_ = nullptr;
+  other.window_ = nullptr;
 }
 
 Window& Window::operator=(Window&& other) noexcept {
-    if (this != &other) {
-        if (window_) {
-            SDL_DestroyWindow(window_);
-        }
-        window_ = other.window_;
-        other.window_ = nullptr;
+  if (this != &other) {
+    if (window_) {
+      SDL_DestroyWindow(window_);
     }
-    return *this;
+    window_ = other.window_;
+    other.window_ = nullptr;
+  }
+  return *this;
 }
 
 Window::Size Window::size() const {
-    Size out;
-    SDL_GetWindowSize(window_, &out.w, &out.h);
-    return out;
+  Size out;
+  SDL_GetWindowSize(window_, &out.w, &out.h);
+  return out;
 }
 
-void Window::set_title(const char* title) { SDL_SetWindowTitle(window_, title); }
+void Window::set_title(const char* title) {
+  SDL_SetWindowTitle(window_, title);
+}
 
 void Window::start_text_input() {
-    if (!SDL_StartTextInput(window_)) {
-        throw_error("SDL_StartTextInput");
-    }
+  if (!SDL_StartTextInput(window_)) {
+    throw_error("SDL_StartTextInput");
+  }
 }
 
 }  // namespace sdl

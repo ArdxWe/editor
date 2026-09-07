@@ -8,33 +8,34 @@ class Window;
 class Texture;
 
 class Renderer {
-public:
-    Renderer() = default;
-    explicit Renderer(const Window& window);
-    ~Renderer();
+ public:
+  Renderer() = default;
+  explicit Renderer(const Window& window);
+  ~Renderer();
 
-    Renderer(const Renderer&) = delete;
-    Renderer& operator=(const Renderer&) = delete;
-    Renderer(Renderer&& other) noexcept;
-    Renderer& operator=(Renderer&& other) noexcept;
+  Renderer(const Renderer&) = delete;
+  Renderer& operator=(const Renderer&) = delete;
+  Renderer(Renderer&& other) noexcept;
+  Renderer& operator=(Renderer&& other) noexcept;
 
-    struct Size {
-        int w = 0;
-        int h = 0;
-    };
+  struct Size {
+    int w = 0;
+    int h = 0;
+  };
 
-    void set_draw_color(Uint8 r, Uint8 g, Uint8 b, Uint8 a) const;
-    void clear() const;
-    void fill_rect(const SDL_FRect& rect) const;
-    void set_clip(const SDL_Rect* rect) const;
-    void copy(const Texture& texture, const SDL_FRect* src, const SDL_FRect* dst) const;
-    void present() const;
-    void set_vsync(int vsync) const;
-    Size output_size() const;
-    SDL_Renderer* get() const { return renderer_; }
+  void set_draw_color(Uint8 r, Uint8 g, Uint8 b, Uint8 a) const;
+  void clear() const;
+  void fill_rect(const SDL_FRect& rect) const;
+  void set_clip(const SDL_Rect* rect) const;
+  void copy(const Texture& texture, const SDL_FRect* src,
+            const SDL_FRect* dst) const;
+  void present() const;
+  void set_vsync(int vsync) const;
+  Size output_size() const;
+  SDL_Renderer* get() const { return renderer_; }
 
-private:
-    SDL_Renderer* renderer_ = nullptr;
+ private:
+  SDL_Renderer* renderer_ = nullptr;
 };
 
 }  // namespace sdl
