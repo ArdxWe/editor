@@ -26,7 +26,9 @@ class Explorer {
   void toggle(int visible_index);
 
   const std::filesystem::path& root() const { return root_; }
+
   const std::filesystem::path& active() const { return active_; }
+
   const std::vector<TreeRow>& rows() const { return rows_; }
 
  private:

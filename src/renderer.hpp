@@ -32,6 +32,7 @@ class Renderer {
   void present() const;
   void set_vsync(int vsync) const;
   Size output_size() const;
+
   SDL_Renderer* get() const { return renderer_; }
 
  private:

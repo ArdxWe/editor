@@ -39,6 +39,7 @@ class Font {
   std::size_t fit(const char* text, int max_width,
                   int* measured_width = nullptr) const;
   SDL_Surface* render(const char* text, SDL_Color fg, SDL_Color bg) const;
+
   TTF_Font* get() const { return font_; }
 
   static std::string default_path();

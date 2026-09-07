@@ -208,9 +208,13 @@ void Terminal::resize(int cols, int rows) {
 #else
 
 bool Terminal::start(const std::filesystem::path&) { return false; }
+
 void Terminal::stop() {}
+
 void Terminal::write(const char*, std::size_t) {}
+
 bool Terminal::poll() { return false; }
+
 void Terminal::resize(int cols, int rows) {
   cols_ = cols;
   rows_ = rows;

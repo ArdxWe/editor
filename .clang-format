@@ -1,1 +1,5 @@
 BasedOnStyle: Google
+MaxEmptyLinesToKeep: 2
+SeparateDefinitionBlocks: Always
+EmptyLineBeforeAccessModifier: Always
+KeepEmptyLinesAtTheStartOfBlocks: false

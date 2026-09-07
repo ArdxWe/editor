@@ -8,6 +8,7 @@
 int main(int argc, char* argv[]) {
   const bool prompt_folder = argc < 2;
   const char* path = prompt_folder ? "." : argv[1];
+
   try {
     sdl::App app{path, prompt_folder};
     app.run();

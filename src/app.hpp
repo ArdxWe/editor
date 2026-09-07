@@ -40,12 +40,14 @@ class App {
   static void folder_dialog_cb(void* userdata, const char* const* filelist,
                                int filter);
   int ask_unsaved();
+
   void draw();
   void draw_tree(int line_h, int content_bottom);
   void draw_editor(int line_h, int content_bottom);
   void draw_terminal(int line_h, int term_top, int status_y);
   void toggle_terminal();
   void handle_terminal_key(const SDL_Event& event);
+
   int status_bar_top() const;
   int terminal_top() const;
   int terminal_panel_height() const;
@@ -60,6 +62,7 @@ class App {
   int gutter_width() const;
   int editor_left() const;
   int split_hit_px() const;
+
   enum class Split { None, Sidebar, Terminal };
   Split hit_split(float x, float y) const;
   void set_split_cursor(Split split);
@@ -76,6 +79,7 @@ class App {
   Explorer explorer_;
   Highlighter highlighter_;
   Terminal terminal_;
+
   int scroll_ = 0;
   int tree_scroll_ = 0;
   int term_scroll_ = 0;
@@ -86,6 +90,7 @@ class App {
   bool drag_moved_ = false;
   SDL_Cursor* cursor_ew_ = nullptr;
   SDL_Cursor* cursor_ns_ = nullptr;
+
   bool term_open_ = false;
   bool term_focus_ = false;
   bool needs_redraw_ = true;

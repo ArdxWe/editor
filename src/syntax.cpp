@@ -173,7 +173,9 @@ constexpr std::string_view kOps2[] = {
 };
 
 bool is_ident_start(unsigned char c) { return std::isalpha(c) || c == '_'; }
+
 bool is_ident(unsigned char c) { return std::isalnum(c) || c == '_'; }
+
 bool is_digit(unsigned char c) { return std::isdigit(c); }
 
 template <std::size_t N>

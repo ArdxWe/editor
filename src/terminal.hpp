@@ -19,15 +19,20 @@ class Terminal {
 
   bool start(const std::filesystem::path& cwd);
   void stop();
+
   bool running() const { return master_ >= 0; }
 
   void write(const char* data, std::size_t size);
+
   void write(const std::string& text) { write(text.data(), text.size()); }
+
   bool poll();
   void resize(int cols, int rows);
 
   const std::vector<std::string>& lines() const { return lines_; }
+
   int cursor_row() const { return row_; }
+
   int cursor_col() const { return col_; }
 
  private:

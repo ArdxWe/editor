@@ -16,6 +16,7 @@ class Surface {
 
   int width() const;
   int height() const;
+
   SDL_Surface* get() const { return surface_; }
 
  private:

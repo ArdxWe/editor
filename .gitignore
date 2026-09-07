@@ -1,4 +1,5 @@
 /build/
 /logs/
+/.cache/
 .DS_Store
 

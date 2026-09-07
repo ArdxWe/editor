@@ -28,12 +28,19 @@ class Document {
   void click_column(int line, int byte_pos);
 
   const std::filesystem::path& path() const { return path_; }
+
   const std::vector<std::string>& lines() const { return lines_; }
+
   int row() const { return row_; }
+
   int col() const { return col_; }
+
   bool dirty() const { return dirty_; }
+
   bool has_file() const { return !path_.empty(); }
+
   bool can_edit() const { return can_edit_; }
+
   std::string title() const;
 
  private:
