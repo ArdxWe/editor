@@ -12,22 +12,6 @@ namespace sdl {
 
 namespace {
 
-const char* latin_font_candidates[] = {
-#ifdef __APPLE__
-    // clang-format off
-    "/Applications/Cursor.app/Contents/Resources/app/out/media/jetbrains-mono-regular.ttf",
-    // clang-format on
-    "/System/Library/Fonts/SFNSMono.ttf",
-    "/System/Library/Fonts/Menlo.ttc",
-    "/System/Library/Fonts/Monaco.ttf",
-#elif defined(_WIN32)
-    "C:\\Windows\\Fonts\\consola.ttf",
-    "C:\\Windows\\Fonts\\CascadiaMono.ttf",
-#else
-    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-#endif
-};
-
 struct CjkFont {
   const char* path;
   Sint64 face;
@@ -82,28 +66,20 @@ TTF_Font* open_face(const char* path, float ptsize, Sint64 face) {
 }  // namespace
 
 std::string Font::default_path() {
+  constexpr const char* name = "jetbrains-mono-regular.ttf";
   std::vector<std::string> candidates;
-  const char* bundled[] = {
-      "jetbrains-mono-medium.ttf",
-      "jetbrains-mono-regular.ttf",
-  };
-  for (const char* name : bundled) {
-    if (const char* base = SDL_GetBasePath()) {
-      candidates.emplace_back(std::string(base) + bundled_font(name));
-    }
-    candidates.emplace_back(bundled_font(name));
-    candidates.emplace_back(std::string("assets/fonts/") + name);
-    candidates.emplace_back(std::string("../assets/fonts/") + name);
+  if (const char* base = SDL_GetBasePath()) {
+    candidates.emplace_back(std::string(base) + bundled_font(name));
   }
-  for (const char* path : latin_font_candidates) {
-    candidates.emplace_back(path);
-  }
+  candidates.emplace_back(bundled_font(name));
+  candidates.emplace_back(std::string("assets/fonts/") + name);
+  candidates.emplace_back(std::string("../assets/fonts/") + name);
   for (const auto& path : candidates) {
     if (std::filesystem::exists(path)) {
       return path;
     }
   }
-  throw std::runtime_error("no usable font found");
+  throw std::runtime_error("JetBrains Mono not found");
 }
 
 void Font::attach_cjk_fallback(float ptsize) {

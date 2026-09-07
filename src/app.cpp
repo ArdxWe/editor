@@ -25,6 +25,9 @@ constexpr SDL_Color kTermBg{245, 244, 241, 255};
 constexpr SDL_Color kTermFg{45, 43, 38, 255};
 constexpr SDL_Color kAccent{47, 108, 196, 255};
 constexpr int kPad = 12;
+constexpr int kFontPtMin = 10;
+constexpr int kFontPtMax = 40;
+constexpr int kFontPtDefault = 16;
 constexpr std::size_t kTextCacheLimit = 2048;
 
 void stroke_h(const Renderer& renderer, float x, float y, float w) {
@@ -73,6 +76,14 @@ bool is_terminal_toggle(const SDL_Event& event) {
     return true;
   }
   return false;
+}
+
+bool is_app_shortcut(SDL_Keymod mod) {
+#ifdef __APPLE__
+  return (mod & SDL_KMOD_GUI) != 0;
+#else
+  return (mod & SDL_KMOD_CTRL) != 0 && (mod & SDL_KMOD_GUI) == 0;
+#endif
 }
 
 std::string tree_label(const TreeRow& row) {
@@ -124,11 +135,9 @@ App::App(const std::filesystem::path& path, bool prompt_folder)
   renderer_ = Renderer{window_};
   renderer_.set_vsync(1);
 
-  const auto win = window_.size();
-  const auto out = renderer_.output_size();
-  const float scale =
-      win.h > 0 ? static_cast<float>(out.h) / static_cast<float>(win.h) : 1.f;
-  font_ = Font{Font::default_path().c_str(), 16.f * scale};
+  font_pt_ = kFontPtDefault;
+  font_ = Font{Font::default_path().c_str(),
+               static_cast<float>(font_pt_) * dpi_scale()};
 
   if (is_dir) {
     explorer_.set_root(abs);
@@ -442,6 +451,10 @@ void App::handle_event(const SDL_Event& event) {
   }
 
   if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+    if (font_ui_hit(event.wheel.mouse_x, event.wheel.mouse_y) != 0) {
+      set_font_size(font_pt_ + (event.wheel.y > 0 ? 1 : -1));
+      return;
+    }
     if (term_open_ && event.wheel.mouse_y >= static_cast<float>(term_y) &&
         event.wheel.mouse_y < static_cast<float>(status_y)) {
       const int vis = std::max(1, (status_y - term_y - kPad) / line_h);
@@ -469,6 +482,15 @@ void App::handle_event(const SDL_Event& event) {
 
   if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
       event.button.button == SDL_BUTTON_LEFT) {
+    const int font_hit = font_ui_hit(event.button.x, event.button.y);
+    if (font_hit != 0) {
+      if (font_hit == 2) {
+        set_font_size(kFontPtDefault);
+      } else {
+        set_font_size(font_pt_ + font_hit);
+      }
+      return;
+    }
     const Split split = hit_split(event.button.x, event.button.y);
     if (split != Split::None) {
       drag_ = split;
@@ -546,6 +568,22 @@ void App::handle_event(const SDL_Event& event) {
 #endif
     show_open_folder_dialog();
     return;
+  }
+
+  if (is_app_shortcut(event.key.mod)) {
+    const SDL_Keycode key = event.key.key;
+    if (key == SDLK_EQUALS || key == SDLK_PLUS || key == SDLK_KP_PLUS) {
+      set_font_size(font_pt_ + 1);
+      return;
+    }
+    if (key == SDLK_MINUS || key == SDLK_KP_MINUS) {
+      set_font_size(font_pt_ - 1);
+      return;
+    }
+    if (key == SDLK_0 || key == SDLK_KP_0) {
+      set_font_size(kFontPtDefault);
+      return;
+    }
   }
 
   if (term_focus_) {
@@ -721,6 +759,45 @@ int App::sidebar_width() const {
 }
 
 int App::split_hit_px() const { return std::max(10, font_.line_skip() / 3); }
+
+float App::dpi_scale() const {
+  const auto win = window_.size();
+  const auto out = renderer_.output_size();
+  return win.h > 0 ? static_cast<float>(out.h) / static_cast<float>(win.h)
+                   : 1.f;
+}
+
+void App::reload_font() {
+  font_ = Font{Font::default_path().c_str(),
+               static_cast<float>(font_pt_) * dpi_scale()};
+  text_cache_.clear();
+  ++cache_stamp_;
+  needs_redraw_ = true;
+  ensure_cursor_visible();
+}
+
+void App::set_font_size(int pt) {
+  pt = std::clamp(pt, kFontPtMin, kFontPtMax);
+  if (pt == font_pt_) {
+    return;
+  }
+  font_pt_ = pt;
+  reload_font();
+}
+
+int App::font_ui_hit(float x, float y) const {
+  const int status_y = status_bar_top();
+  if (y < static_cast<float>(status_y - 4) || x < font_ui_x_) {
+    return 0;
+  }
+  if (x < font_num_x_) {
+    return -1;
+  }
+  if (x >= font_plus_x_) {
+    return 1;
+  }
+  return 2;
+}
 
 App::Split App::hit_split(float x, float y) const {
   const int hit = split_hit_px();
@@ -1087,6 +1164,30 @@ void App::draw() {
                          hint_tex->width(), hint_tex->height()};
     renderer_.copy(*hint_tex, nullptr, &dest);
   }
+
+  const std::string minus = "-";
+  const std::string plus = "+";
+  const std::string size_label = std::to_string(font_pt_);
+  const int minus_w = std::max(1, font_.measure(minus.c_str()));
+  const int plus_w = std::max(1, font_.measure(plus.c_str()));
+  const int num_w = std::max(1, font_.measure(size_label.c_str()));
+  const int gap = 10;
+  const float block_w = static_cast<float>(minus_w + num_w + plus_w + gap * 4);
+  font_ui_x_ = std::max(static_cast<float>(kPad),
+                        static_cast<float>(out.w) - kPad - block_w);
+  font_minus_x_ = font_ui_x_;
+  font_num_x_ = font_minus_x_ + static_cast<float>(minus_w + gap);
+  font_plus_x_ = font_num_x_ + static_cast<float>(num_w + gap);
+  const float ui_y = static_cast<float>(status_y);
+  auto blit = [&](const char* text, float x) {
+    if (const Texture* tex = cached_texture(text, kStatus, kStatusBg)) {
+      const SDL_FRect dest{x, ui_y, tex->width(), tex->height()};
+      renderer_.copy(*tex, nullptr, &dest);
+    }
+  };
+  blit(minus.c_str(), font_minus_x_);
+  blit(size_label.c_str(), font_num_x_);
+  blit(plus.c_str(), font_plus_x_);
 
   renderer_.present();
 }

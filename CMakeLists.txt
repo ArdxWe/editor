@@ -83,9 +83,6 @@ endif()
 add_custom_command(TARGET editor POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:editor>/fonts
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${CMAKE_SOURCE_DIR}/assets/fonts/jetbrains-mono-medium.ttf
-        $<TARGET_FILE_DIR:editor>/fonts/jetbrains-mono-medium.ttf
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
         ${CMAKE_SOURCE_DIR}/assets/fonts/jetbrains-mono-regular.ttf
         $<TARGET_FILE_DIR:editor>/fonts/jetbrains-mono-regular.ttf
 )

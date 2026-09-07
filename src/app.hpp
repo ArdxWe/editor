@@ -62,6 +62,10 @@ class App {
   int gutter_width() const;
   int editor_left() const;
   int split_hit_px() const;
+  float dpi_scale() const;
+  void set_font_size(int pt);
+  void reload_font();
+  int font_ui_hit(float x, float y) const;
 
   enum class Split { None, Sidebar, Terminal };
   Split hit_split(float x, float y) const;
@@ -75,6 +79,11 @@ class App {
   Window window_;
   Renderer renderer_;
   Font font_;
+  int font_pt_ = 16;
+  float font_ui_x_ = 1e9f;
+  float font_minus_x_ = 0;
+  float font_num_x_ = 0;
+  float font_plus_x_ = 0;
   Document doc_;
   Explorer explorer_;
   Highlighter highlighter_;
