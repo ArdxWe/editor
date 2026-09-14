@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <string>
 
+#include "log.hpp"
 #include "surface.hpp"
 #include "utf8.hpp"
 
@@ -158,6 +159,9 @@ App::App(const std::filesystem::path& path, bool prompt_folder)
   cursor_ew_ = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_EW_RESIZE);
   cursor_ns_ = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_NS_RESIZE);
   prompt_folder_ = prompt_folder;
+  LOG_INFO("open {} as {}", abs.string(), is_dir ? "folder" : "file");
+  LOG_DEBUG("dpi={:.2f} font_pt={} line_skip={}", dpi_scale(), font_pt_,
+            font_.line_skip());
   refresh_title();
   wake_caret();
 }
@@ -188,6 +192,7 @@ void App::run() {
                                    : SDL_WaitEventTimeout(&event, wait_ms);
     while (got_event) {
       if (event.type == SDL_EVENT_QUIT) {
+        LOG_INFO("quit");
         running = false;
         break;
       }
@@ -289,8 +294,10 @@ int App::ask_unsaved() {
   };
   int id = 0;
   if (!SDL_ShowMessageBox(&data, &id)) {
+    LOG_WARN("unsaved prompt failed: {}", SDL_GetError());
     return 0;
   }
+  LOG_DEBUG("unsaved prompt choice={}", id);
   return id;
 }
 
@@ -318,6 +325,7 @@ bool App::open_file(const std::filesystem::path& path) {
   explorer_.reveal(path);
   refresh_title();
   wake_caret();
+  LOG_INFO("file {}", path.string());
   return true;
 }
 
@@ -358,6 +366,7 @@ bool App::open_folder(const std::filesystem::path& path) {
   }
   refresh_title();
   needs_redraw_ = true;
+  LOG_INFO("folder {}", abs.string());
   return true;
 }
 
@@ -367,6 +376,7 @@ void App::show_open_folder_dialog() {
   }
   picking_folder_ = true;
   folder_dialog_start_ = explorer_.root().string();
+  LOG_DEBUG("folder dialog from {}", folder_dialog_start_);
   SDL_ShowOpenFolderDialog(
       &App::folder_dialog_cb, this, window_.get(),
       folder_dialog_start_.empty() ? nullptr : folder_dialog_start_.c_str(),
@@ -380,8 +390,10 @@ void App::folder_dialog_cb(void* userdata, const char* const* filelist, int) {
   }
   app->picking_folder_ = false;
   if (!filelist || !filelist[0]) {
+    LOG_DEBUG("folder dialog cancelled");
     return;
   }
+  LOG_DEBUG("folder dialog picked {}", filelist[0]);
   app->open_folder(filelist[0]);
 }
 
@@ -643,6 +655,7 @@ void App::handle_event(const SDL_Event& event) {
 }
 
 void App::save() {
+  LOG_INFO("save {}", doc_.path().string());
   doc_.save();
   refresh_title();
 }
@@ -650,6 +663,8 @@ void App::save() {
 void App::toggle_terminal() {
   term_open_ = !term_open_;
   term_focus_ = term_open_;
+  LOG_DEBUG("terminal {} focus={}", term_open_ ? "open" : "closed",
+            term_focus_);
   if (term_open_ && !terminal_.running()) {
     terminal_.start(explorer_.root());
   }
@@ -782,6 +797,7 @@ void App::set_font_size(int pt) {
     return;
   }
   font_pt_ = pt;
+  LOG_INFO("font_pt={}", font_pt_);
   reload_font();
 }
 

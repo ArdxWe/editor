@@ -12,7 +12,7 @@ Window::Window(const char* title, int width, int height, SDL_WindowFlags flags)
 }
 
 Window::~Window() {
-  if (window_) {
+  if (window_ != nullptr) {
     SDL_DestroyWindow(window_);
   }
 }
@@ -23,7 +23,7 @@ Window::Window(Window&& other) noexcept : window_(other.window_) {
 
 Window& Window::operator=(Window&& other) noexcept {
   if (this != &other) {
-    if (window_) {
+    if (window_ != nullptr) {
       SDL_DestroyWindow(window_);
     }
     window_ = other.window_;

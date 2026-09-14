@@ -2,7 +2,6 @@
 
 #include <SDL3/SDL.h>
 
-#include <stdexcept>
 #include <string>
 
 namespace sdl {
@@ -12,8 +11,6 @@ namespace sdl {
   return std::string(what) + ": " + (err && *err ? err : "unknown error");
 }
 
-[[noreturn]] inline void throw_error(const char* what) {
-  throw std::runtime_error(last_error(what));
-}
+[[noreturn]] void throw_error(const char* what);
 
 }  // namespace sdl

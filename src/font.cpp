@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+#include "log.hpp"
+
 namespace sdl {
 
 namespace {
@@ -76,6 +78,7 @@ std::string Font::default_path() {
   candidates.emplace_back(std::string("../assets/fonts/") + name);
   for (const auto& path : candidates) {
     if (std::filesystem::exists(path)) {
+      LOG_DEBUG("font {}", path);
       return path;
     }
   }
@@ -97,6 +100,7 @@ void Font::attach_cjk_fallback(float ptsize) {
     const int skip =
         std::max(TTF_GetFontLineSkip(font_), TTF_GetFontLineSkip(cjk));
     TTF_SetFontLineSkip(font_, skip);
+    LOG_DEBUG("cjk fallback {} face={}", candidate.path, candidate.face);
     return;
   }
 }

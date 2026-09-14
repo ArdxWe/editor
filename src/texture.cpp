@@ -34,10 +34,6 @@ Texture& Texture::operator=(Texture&& other) noexcept {
   return *this;
 }
 
-void Texture::set_scale_mode(SDL_ScaleMode mode) const {
-  SDL_SetTextureScaleMode(texture_, mode);
-}
-
 float Texture::width() const {
   float w = 0;
   float h = 0;

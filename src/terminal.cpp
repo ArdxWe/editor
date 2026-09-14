@@ -9,14 +9,12 @@
 
 #include "utf8.hpp"
 
-#ifndef _WIN32
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <termios.h>
 #include <unistd.h>
-#endif
 
 namespace sdl {
 
@@ -51,8 +49,6 @@ std::size_t utf8_len(unsigned char c) {
 }  // namespace
 
 Terminal::~Terminal() { stop(); }
-
-#ifndef _WIN32
 
 bool Terminal::start(const std::filesystem::path& cwd) {
   stop();
@@ -102,11 +98,7 @@ bool Terminal::start(const std::filesystem::path& cwd) {
     setenv("COLORTERM", "truecolor", 1);
     const char* shell = std::getenv("SHELL");
     if (!shell || !*shell) {
-#ifdef __APPLE__
       shell = "/bin/zsh";
-#else
-      shell = "/bin/bash";
-#endif
     }
     execl(shell, shell, "-i", static_cast<char*>(nullptr));
     _exit(127);
@@ -204,23 +196,6 @@ void Terminal::resize(int cols, int rows) {
   ws.ws_row = static_cast<unsigned short>(rows_);
   ioctl(master_, TIOCSWINSZ, &ws);
 }
-
-#else
-
-bool Terminal::start(const std::filesystem::path&) { return false; }
-
-void Terminal::stop() {}
-
-void Terminal::write(const char*, std::size_t) {}
-
-bool Terminal::poll() { return false; }
-
-void Terminal::resize(int cols, int rows) {
-  cols_ = cols;
-  rows_ = rows;
-}
-
-#endif
 
 void Terminal::ensure_line() {
   if (lines_.empty()) {
