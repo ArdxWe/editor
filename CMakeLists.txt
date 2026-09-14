@@ -29,10 +29,9 @@ target_include_directories(editor PRIVATE src)
 target_link_libraries(editor PRIVATE spdlog::spdlog SDL3_ttf::SDL3_ttf SDL3::SDL3)
 
 add_custom_command(TARGET editor POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:editor>/fonts
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${CMAKE_SOURCE_DIR}/assets/fonts/jetbrains-mono-regular.ttf
-        $<TARGET_FILE_DIR:editor>/fonts/jetbrains-mono-regular.ttf)
+        ${CMAKE_SOURCE_DIR}/editor.conf
+        $<TARGET_FILE_DIR:editor>/editor.conf)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(editor PRIVATE

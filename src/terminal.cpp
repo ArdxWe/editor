@@ -1,5 +1,12 @@
 #include "terminal.hpp"
 
+#include <fcntl.h>
+#include <signal.h>
+#include <sys/ioctl.h>
+#include <sys/wait.h>
+#include <termios.h>
+#include <unistd.h>
+
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -9,18 +16,13 @@
 
 #include "utf8.hpp"
 
-#include <fcntl.h>
-#include <signal.h>
-#include <sys/ioctl.h>
-#include <sys/wait.h>
-#include <termios.h>
-#include <unistd.h>
-
 namespace sdl {
 
 namespace {
 
 constexpr int kMaxScrollback = 2000;
+// Tiny VT parser: Ground is printable text. ESC switches to Esc, then
+// '[' is CSI (cursor/erase) and ']' is OSC (window title etc., ignored).
 constexpr int kGround = 0;
 constexpr int kEsc = 1;
 constexpr int kCsi = 2;
@@ -52,6 +54,9 @@ Terminal::~Terminal() { stop(); }
 
 bool Terminal::start(const std::filesystem::path& cwd) {
   stop();
+
+  // A PTY is a kernel pipe that looks like a real tty to the child. We keep
+  // the master fd and talk to the shell through it; the child gets the slave.
   master_ = posix_openpt(O_RDWR | O_NOCTTY);
   if (master_ < 0) {
     return false;
@@ -82,6 +87,9 @@ bool Terminal::start(const std::filesystem::path& cwd) {
     return false;
   }
   if (pid == 0) {
+    // Child: drop the master, become a session leader, and make the slave
+    // the controlling tty so job control / SIGINT work. Then stdin/out/err
+    // all go through that fd and we exec an interactive shell.
     close(master_);
     setsid();
     ioctl(slave, TIOCSCTTY, 0);
@@ -104,6 +112,8 @@ bool Terminal::start(const std::filesystem::path& cwd) {
     _exit(127);
   }
 
+  // Parent: only the master is needed. Non-blocking so poll() can drain
+  // output without stalling the editor.
   close(slave);
   pid_ = pid;
   const int flags = fcntl(master_, F_GETFL, 0);
@@ -248,6 +258,8 @@ void Terminal::put_utf8(std::string_view ch) {
 }
 
 void Terminal::feed(const char* data, std::size_t size) {
+  // Reads can split a UTF-8 code point or an escape sequence, so leftovers
+  // stay in pending_ until the next poll().
   pending_.append(data, size);
   std::size_t i = 0;
   while (i < pending_.size()) {
@@ -268,6 +280,7 @@ void Terminal::feed(const char* data, std::size_t size) {
       continue;
     }
     if (parse_ == kCsi) {
+      // CSI ends on a byte in '@'..'~'. Only EL (K) and CUF/CUB (C/D) matter.
       if (c >= 0x40 && c <= 0x7E) {
         if (c == 'K') {
           erase_to_end();
@@ -284,6 +297,7 @@ void Terminal::feed(const char* data, std::size_t size) {
       continue;
     }
     if (parse_ == kOsc) {
+      // OSC is terminated by BEL or ST (ESC \). We skip the payload.
       if (c == 0x07 || c == '\\') {
         parse_ = kGround;
       }
@@ -291,6 +305,7 @@ void Terminal::feed(const char* data, std::size_t size) {
       continue;
     }
 
+    // Ground: ESC starts a sequence; otherwise C0 controls or UTF-8 text.
     if (c == 0x1B) {
       parse_ = kEsc;
       ++i;
@@ -338,7 +353,7 @@ void Terminal::feed(const char* data, std::size_t size) {
     }
     const std::size_t n = utf8_len(c);
     if (i + n > pending_.size()) {
-      break;
+      break;  // Incomplete UTF-8; wait for more bytes.
     }
     put_utf8(std::string_view{pending_.data() + i, n});
     i += n;

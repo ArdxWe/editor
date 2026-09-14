@@ -23,6 +23,7 @@ class Window {
   Size size() const;
   void set_title(const char* title);
   void start_text_input();
+
   SDL_Window* get() const { return window_; }
 
  private:

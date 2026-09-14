@@ -79,13 +79,7 @@ bool is_terminal_toggle(const SDL_Event& event) {
   return false;
 }
 
-bool is_app_shortcut(SDL_Keymod mod) {
-#ifdef __APPLE__
-  return (mod & SDL_KMOD_GUI) != 0;
-#else
-  return (mod & SDL_KMOD_CTRL) != 0 && (mod & SDL_KMOD_GUI) == 0;
-#endif
-}
+bool is_app_shortcut(SDL_Keymod mod) { return (mod & SDL_KMOD_GUI) != 0; }
 
 std::string tree_label(const TreeRow& row) {
   std::string label(static_cast<std::size_t>(row.depth) * 2, ' ');
@@ -137,8 +131,10 @@ App::App(const std::filesystem::path& path, bool prompt_folder)
   renderer_.set_vsync(1);
 
   font_pt_ = kFontPtDefault;
-  font_ = Font{Font::default_path().c_str(),
-               static_cast<float>(font_pt_) * dpi_scale()};
+  config_ = load_config();
+  config_.font = resolve_font(config_.font);
+  font_ =
+      Font{config_.font.c_str(), static_cast<float>(font_pt_) * dpi_scale()};
 
   if (is_dir) {
     explorer_.set_root(abs);
@@ -562,22 +558,12 @@ void App::handle_event(const SDL_Event& event) {
     return;
   }
 
-#ifdef __APPLE__
   if (event.key.key == SDLK_S && (event.key.mod & SDL_KMOD_GUI)) {
-#else
-  if (event.key.key == SDLK_S && (event.key.mod & SDL_KMOD_CTRL) &&
-      !(event.key.mod & SDL_KMOD_GUI)) {
-#endif
     save();
     return;
   }
 
-#ifdef __APPLE__
   if (event.key.key == SDLK_O && (event.key.mod & SDL_KMOD_GUI)) {
-#else
-  if (event.key.key == SDLK_O && (event.key.mod & SDL_KMOD_CTRL) &&
-      !(event.key.mod & SDL_KMOD_GUI)) {
-#endif
     show_open_folder_dialog();
     return;
   }
@@ -783,8 +769,8 @@ float App::dpi_scale() const {
 }
 
 void App::reload_font() {
-  font_ = Font{Font::default_path().c_str(),
-               static_cast<float>(font_pt_) * dpi_scale()};
+  font_ =
+      Font{config_.font.c_str(), static_cast<float>(font_pt_) * dpi_scale()};
   text_cache_.clear();
   ++cache_stamp_;
   needs_redraw_ = true;
@@ -966,11 +952,7 @@ void App::draw_editor(int line_h, int content_bottom) {
 
   if (!doc_.has_file()) {
     const char* hint =
-#ifdef __APPLE__
         "Cmd+O or click the empty sidebar to open a folder";
-#else
-        "Ctrl+O or click the empty sidebar to open a folder";
-#endif
     if (const Texture* tex = cached_texture(hint, kStatus, kPage)) {
       const SDL_FRect dest{static_cast<float>(left + kPad * 2),
                            static_cast<float>(kPad), tex->width(),
@@ -1166,11 +1148,7 @@ void App::draw() {
                                  : doc_.path().filename().string();
     hint += "    ";
   }
-#ifdef __APPLE__
   hint += "Cmd+O folder    Cmd+S save    Cmd+J terminal";
-#else
-  hint += "Ctrl+O folder    Ctrl+S save    Ctrl+J terminal";
-#endif
   if (term_focus_) {
     hint += "    Esc editor";
   }

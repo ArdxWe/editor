@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "config.hpp"
 #include "context.hpp"
 #include "document.hpp"
 #include "explorer.hpp"
@@ -72,7 +73,7 @@ class App {
   int editor_left() const;
   int split_hit_px() const;
 
-  // Font size: status-bar stepper and Cmd/Ctrl + '=', '-', '0'.
+  // Font size: status-bar stepper and Cmd + '=', '-', '0'.
   float dpi_scale() const;
   void set_font_size(int pt);
   void reload_font();
@@ -92,6 +93,7 @@ class App {
   Window window_;
   Renderer renderer_;
   Font font_;
+  Config config_;
   int font_pt_ = 16;  // Logical point size; raster size is pt * dpi_scale().
   // Left edge of the stepper. Large until the first draw to avoid stray hits.
   float font_ui_x_ = 1e9f;

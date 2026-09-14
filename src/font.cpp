@@ -4,9 +4,6 @@
 
 #include <algorithm>
 #include <filesystem>
-#include <stdexcept>
-#include <string>
-#include <vector>
 
 #include "log.hpp"
 
@@ -42,10 +39,6 @@ const CjkFont cjk_font_candidates[] = {
 #endif
 };
 
-std::string bundled_font(const char* name) {
-  return std::string("fonts/") + name;
-}
-
 TTF_Font* open_face(const char* path, float ptsize, Sint64 face) {
   if (!path || !std::filesystem::exists(path)) {
     return nullptr;
@@ -66,24 +59,6 @@ TTF_Font* open_face(const char* path, float ptsize, Sint64 face) {
 }
 
 }  // namespace
-
-std::string Font::default_path() {
-  constexpr const char* name = "jetbrains-mono-regular.ttf";
-  std::vector<std::string> candidates;
-  if (const char* base = SDL_GetBasePath()) {
-    candidates.emplace_back(std::string(base) + bundled_font(name));
-  }
-  candidates.emplace_back(bundled_font(name));
-  candidates.emplace_back(std::string("assets/fonts/") + name);
-  candidates.emplace_back(std::string("../assets/fonts/") + name);
-  for (const auto& path : candidates) {
-    if (std::filesystem::exists(path)) {
-      LOG_DEBUG("font {}", path);
-      return path;
-    }
-  }
-  throw std::runtime_error("JetBrains Mono not found");
-}
 
 void Font::attach_cjk_fallback(float ptsize) {
   for (const CjkFont& candidate : cjk_font_candidates) {

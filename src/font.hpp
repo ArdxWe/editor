@@ -42,8 +42,6 @@ class Font {
 
   TTF_Font* get() const { return font_; }
 
-  static std::string default_path();
-
  private:
   void attach_cjk_fallback(float ptsize);
 
