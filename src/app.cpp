@@ -739,6 +739,7 @@ int App::content_bottom() const {
   return term_open_ ? terminal_top() : status_bar_top();
 }
 
+// Restart the 500ms blink so the caret is visible after typing or moving.
 void App::wake_caret() { caret_tick_ = SDL_GetTicks(); }
 
 bool App::caret_visible() const {
@@ -1014,7 +1015,7 @@ void App::draw_editor(int line_h, int content_bottom) {
     }
 
     if (index == doc_.row() && caret_visible()) {
-      const std::size_t col = static_cast<std::size_t>(doc_.col());
+      const std::size_t col = static_cast<std::size_t>(doc_.line_offset());
       const int prefix_w = col == 0 ? 0 : font_.measure(line.c_str(), col);
       const float cx = static_cast<float>(left + gutter + prefix_w);
       const SDL_FRect caret{cx, y, 2.f, static_cast<float>(line_h)};
