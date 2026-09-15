@@ -3,7 +3,6 @@
 #include <SDL3_ttf/SDL_ttf.h>
 
 #include <cstddef>
-#include <string>
 
 #include "error.hpp"
 

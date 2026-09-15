@@ -17,7 +17,6 @@ struct CjkFont {
 };
 
 const CjkFont cjk_font_candidates[] = {
-#ifdef __APPLE__
     {"/System/Library/Fonts/PingFang.ttc", 0},
     {"/System/Library/Fonts/Hiragino Sans GB.ttc", 2},
     {"/System/Library/Fonts/Hiragino Sans GB.ttc", 0},
@@ -26,17 +25,6 @@ const CjkFont cjk_font_candidates[] = {
     {"/System/Library/Fonts/Supplemental/Songti.ttc", 6},
     {"/System/Library/Fonts/Supplemental/Arial Unicode.ttf", 0},
     {"/Library/Fonts/Arial Unicode.ttf", 0},
-#elif defined(_WIN32)
-    {"C:\\Windows\\Fonts\\msyh.ttc", 0},
-    {"C:\\Windows\\Fonts\\msyh.ttf", 0},
-    {"C:\\Windows\\Fonts\\simhei.ttf", 0},
-    {"C:\\Windows\\Fonts\\simsun.ttc", 0},
-#else
-    {"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", 0},
-    {"/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc", 0},
-    {"/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf", 0},
-    {"/usr/share/fonts/truetype/wqy/wqy-microhei.ttc", 0},
-#endif
 };
 
 TTF_Font* open_face(const char* path, float ptsize, Sint64 face) {

@@ -104,15 +104,16 @@ void Document::insert(const char* utf8) {
   auto& line = lines_[static_cast<std::size_t>(row_index_)];
   const std::string text{utf8};
   line.insert(static_cast<std::size_t>(line_offset_), text);
-  line_offset_ += static_cast<int>(text.size());  // Advance by bytes, matching line_offset_.
+  line_offset_ += static_cast<int>(
+      text.size());  // Advance by bytes, matching line_offset_.
   dirty_ = true;
 }
 
 void Document::backspace() {
   auto& line = lines_[static_cast<std::size_t>(row_index_)];
   if (line_offset_ > 0) {
-    const int prev =
-        static_cast<int>(utf8_prev(line, static_cast<std::size_t>(line_offset_)));
+    const int prev = static_cast<int>(
+        utf8_prev(line, static_cast<std::size_t>(line_offset_)));
     line.erase(static_cast<std::size_t>(prev),
                static_cast<std::size_t>(line_offset_ - prev));
     line_offset_ = prev;
@@ -134,8 +135,8 @@ void Document::backspace() {
 void Document::erase_forward() {
   auto& line = lines_[static_cast<std::size_t>(row_index_)];
   if (line_offset_ < static_cast<int>(line.size())) {
-    const int next =
-        static_cast<int>(utf8_next(line, static_cast<std::size_t>(line_offset_)));
+    const int next = static_cast<int>(
+        utf8_next(line, static_cast<std::size_t>(line_offset_)));
     line.erase(static_cast<std::size_t>(line_offset_),
                static_cast<std::size_t>(next - line_offset_));
     dirty_ = true;
@@ -162,20 +163,23 @@ void Document::newline() {
 
 void Document::move_left() {
   if (line_offset_ > 0) {
-    line_offset_ = static_cast<int>(utf8_prev(lines_[static_cast<std::size_t>(row_index_)],
-                                      static_cast<std::size_t>(line_offset_)));
+    line_offset_ =
+        static_cast<int>(utf8_prev(lines_[static_cast<std::size_t>(row_index_)],
+                                   static_cast<std::size_t>(line_offset_)));
     return;
   }
   if (row_index_ > 0) {
     --row_index_;
-    line_offset_ = static_cast<int>(lines_[static_cast<std::size_t>(row_index_)].size());
+    line_offset_ =
+        static_cast<int>(lines_[static_cast<std::size_t>(row_index_)].size());
   }
 }
 
 void Document::move_right() {
   auto& line = lines_[static_cast<std::size_t>(row_index_)];
   if (line_offset_ < static_cast<int>(line.size())) {
-    line_offset_ = static_cast<int>(utf8_next(line, static_cast<std::size_t>(line_offset_)));
+    line_offset_ = static_cast<int>(
+        utf8_next(line, static_cast<std::size_t>(line_offset_)));
     return;
   }
   if (row_index_ + 1 < static_cast<int>(lines_.size())) {
@@ -203,7 +207,8 @@ void Document::move_down() {
 void Document::move_home() { line_offset_ = 0; }
 
 void Document::move_end() {
-  line_offset_ = static_cast<int>(lines_[static_cast<std::size_t>(row_index_)].size());
+  line_offset_ =
+      static_cast<int>(lines_[static_cast<std::size_t>(row_index_)].size());
 }
 
 void Document::click_column(int line, int byte_pos) {

@@ -30,7 +30,7 @@ class Renderer {
   void copy(const Texture& texture, const SDL_FRect* src,
             const SDL_FRect* dst) const;
   void present() const;
-  void set_vsync(int vsync) const;
+  void set_vsync(int vsync) const;  // 1: wait for display refresh; 0: uncapped
   Size output_size() const;
 
   SDL_Renderer* get() const { return renderer_; }

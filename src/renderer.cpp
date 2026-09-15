@@ -55,6 +55,7 @@ void Renderer::copy(const Texture& texture, const SDL_FRect* src,
 
 void Renderer::present() const { SDL_RenderPresent(renderer_); }
 
+// 1 locks present() to the display refresh (typically 60Hz) to avoid tearing.
 void Renderer::set_vsync(int vsync) const {
   SDL_SetRenderVSync(renderer_, vsync);
 }

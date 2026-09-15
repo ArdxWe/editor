@@ -18,14 +18,17 @@ constexpr SDL_Color kHair{226, 224, 218, 255};
 constexpr SDL_Color kLineHi{244, 242, 236, 255};
 constexpr SDL_Color kLineNo{168, 164, 156, 255};
 constexpr SDL_Color kStatus{110, 106, 98, 255};
-constexpr SDL_Color kTree{52, 50, 46, 255};
-constexpr SDL_Color kTreeBg{245, 244, 241, 255};
-constexpr SDL_Color kTreeActive{236, 232, 222, 255};
+constexpr SDL_Color kTree{48, 46, 42, 255};
+constexpr SDL_Color kTreeFile{108, 104, 96, 255};
+constexpr SDL_Color kTreeBg{242, 241, 237, 255};
+constexpr SDL_Color kTreeActive{226, 221, 210, 255};
 constexpr SDL_Color kStatusBg{245, 244, 241, 255};
 constexpr SDL_Color kTermBg{245, 244, 241, 255};
 constexpr SDL_Color kTermFg{45, 43, 38, 255};
 constexpr SDL_Color kAccent{47, 108, 196, 255};
 constexpr int kPad = 12;
+constexpr int kTreePadX = 10;
+constexpr int kTreeIndent = 14;
 constexpr int kFontPtMin = 10;
 constexpr int kFontPtMax = 40;
 constexpr int kFontPtDefault = 16;
@@ -81,15 +84,14 @@ bool is_terminal_toggle(const SDL_Event& event) {
 
 bool is_app_shortcut(SDL_Keymod mod) { return (mod & SDL_KMOD_GUI) != 0; }
 
-std::string tree_label(const TreeRow& row) {
-  std::string label(static_cast<std::size_t>(row.depth) * 2, ' ');
-  if (row.is_dir) {
-    label += row.expanded ? "v " : "> ";
-  } else {
-    label += "  ";
+int tree_rows_top(int line_h) { return line_h + 8; }
+
+int tree_index_at(float y, int line_h, int scroll) {
+  const int top = tree_rows_top(line_h);
+  if (y < static_cast<float>(top)) {
+    return -1;
   }
-  label += row.name;
-  return label;
+  return scroll + static_cast<int>((y - static_cast<float>(top)) / line_h);
 }
 
 bool file_inside_root(const std::filesystem::path& file,
@@ -130,7 +132,7 @@ App::App(const std::filesystem::path& path, bool prompt_folder)
   renderer_ = Renderer{window_};
   renderer_.set_vsync(1);
 
-  font_pt_ = kFontPtDefault;
+  font_pt_ = kFontPtDefault;  // Cmd+= / - / 0 and the status-bar stepper change this
   config_ = load_config();
   config_.font = resolve_font(config_.font);
   font_ =
@@ -474,7 +476,7 @@ void App::handle_event(const SDL_Event& event) {
     }
     if (event.wheel.mouse_x < static_cast<float>(side) &&
         event.wheel.mouse_y < static_cast<float>(bottom)) {
-      const int vis = std::max(1, (bottom - kPad) / line_h);
+      const int vis = std::max(1, (bottom - tree_rows_top(line_h)) / line_h);
       const int max_scroll =
           std::max(0, static_cast<int>(explorer_.rows().size()) - vis);
       tree_scroll_ -= static_cast<int>(event.wheel.y);
@@ -520,9 +522,11 @@ void App::handle_event(const SDL_Event& event) {
     }
     term_focus_ = false;
     if (event.button.x < static_cast<float>(side)) {
-      const int row =
-          tree_scroll_ + static_cast<int>((event.button.y - kPad) / line_h);
-      if (row < 0 || row >= static_cast<int>(explorer_.rows().size())) {
+      const int row = tree_index_at(event.button.y, line_h, tree_scroll_);
+      if (row < 0) {
+        return;
+      }
+      if (row >= static_cast<int>(explorer_.rows().size())) {
         show_open_folder_dialog();
         return;
       }
@@ -910,30 +914,64 @@ void App::draw_tree(int line_h, int content_bottom) {
   const SDL_Rect clip{0, 0, side, content_bottom};
   renderer_.set_clip(&clip);
 
+  std::string root_name = explorer_.root().filename().string();
+  if (root_name.empty()) {
+    root_name = explorer_.root().string();
+  }
+  if (root_name.empty()) {
+    root_name = "Explorer";
+  }
+  const int header_h = tree_rows_top(line_h);
+  if (const Texture* title =
+          cached_texture(root_name.c_str(), kStatus, kTreeBg)) {
+    const SDL_FRect dest{static_cast<float>(kTreePadX), 6.f, title->width(),
+                         title->height()};
+    renderer_.copy(*title, nullptr, &dest);
+  }
+  stroke_h(renderer_, 8.f, static_cast<float>(header_h - 5),
+           static_cast<float>(std::max(0, side - 16)));
+
+  const int chevron_w = std::max(font_.measure("▸ "), font_.measure("▾ ")) + 4;
   const auto& rows = explorer_.rows();
-  const int vis = std::max(1, (content_bottom - kPad) / line_h);
+  const int vis = std::max(1, (content_bottom - header_h) / line_h);
   for (int i = 0; i < vis; ++i) {
     const int index = tree_scroll_ + i;
     if (index >= static_cast<int>(rows.size())) {
       break;
     }
     const TreeRow& row = rows[static_cast<std::size_t>(index)];
-    const float y = static_cast<float>(kPad + i * line_h);
+    const float y = static_cast<float>(header_h + i * line_h);
+    const float x = static_cast<float>(kTreePadX + row.depth * kTreeIndent);
+    const SDL_Color bg = row.active ? kTreeActive : kTreeBg;
     if (row.active) {
       renderer_.set_draw_color(kTreeActive.r, kTreeActive.g, kTreeActive.b,
                                255);
-      const SDL_FRect hi{0.f, y - 2.f, static_cast<float>(side),
-                         static_cast<float>(line_h)};
+      const SDL_FRect hi{6.f, y, static_cast<float>(std::max(0, side - 12)),
+                         static_cast<float>(line_h - 1)};
       renderer_.fill_rect(hi);
       renderer_.set_draw_color(kAccent.r, kAccent.g, kAccent.b, 255);
       renderer_.fill_rect(
-          SDL_FRect{0.f, y - 2.f, 3.f, static_cast<float>(line_h)});
+          SDL_FRect{6.f, y, 2.f, static_cast<float>(line_h - 1)});
     }
-    const std::string label = tree_label(row);
-    if (const Texture* tex = cached_texture(
-            label.c_str(), kTree, row.active ? kTreeActive : kTreeBg)) {
-      const SDL_FRect dest{static_cast<float>(kPad), y, tex->width(),
-                           tex->height()};
+    if (row.is_dir) {
+      const char* mark = row.expanded ? "▾" : "▸";
+      if (const Texture* chev = cached_texture(mark, kLineNo, bg)) {
+        const SDL_FRect dest{x, y + 1.f, chev->width(), chev->height()};
+        renderer_.copy(*chev, nullptr, &dest);
+      }
+    }
+    const float name_x = x + static_cast<float>(chevron_w);
+    const int max_w = side - static_cast<int>(name_x) - kTreePadX;
+    std::string name = row.name;
+    if (max_w > 0) {
+      const std::size_t keep = font_.fit(name.c_str(), max_w);
+      if (keep < name.size()) {
+        name.resize(keep);
+      }
+    }
+    const SDL_Color fg = row.is_dir ? kTree : kTreeFile;
+    if (const Texture* tex = cached_texture(name.c_str(), fg, bg)) {
+      const SDL_FRect dest{name_x, y, tex->width(), tex->height()};
       renderer_.copy(*tex, nullptr, &dest);
     }
   }
@@ -952,8 +990,7 @@ void App::draw_editor(int line_h, int content_bottom) {
   renderer_.fill_rect(page);
 
   if (!doc_.has_file()) {
-    const char* hint =
-        "Cmd+O or click the empty sidebar to open a folder";
+    const char* hint = "Cmd+O or click the empty sidebar to open a folder";
     if (const Texture* tex = cached_texture(hint, kStatus, kPage)) {
       const SDL_FRect dest{static_cast<float>(left + kPad * 2),
                            static_cast<float>(kPad), tex->width(),

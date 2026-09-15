@@ -6,18 +6,21 @@
 
 namespace sdl {
 
-// In-memory buffer of UTF-8 lines. `line_offset_` is a byte offset, not a glyph index.
+// In-memory buffer of UTF-8 lines. `line_offset_` is a byte offset, not a glyph
+// index.
 class Document {
  public:
   Document() = default;
   explicit Document(std::filesystem::path path);
 
-  void load(std::filesystem::path path);  // Reads the file into in-memory lines_
+  void load(
+      std::filesystem::path path);  // Reads the file into in-memory lines_
   void close();
   void save();
 
   void insert(const char* utf8);
-  void backspace();
+  void
+  backspace();  // Delete previous UTF-8 code point, or join with the line above
   void erase_forward();
   void newline();
   void move_left();
@@ -47,12 +50,13 @@ class Document {
  private:
   void clamp();  // Keep line_offset_ within the current line
 
-  std::filesystem::path path_;          // Empty means no file is open
-  std::vector<std::string> lines_{""};  // Always at least one (possibly empty) line
-  int row_index_ = 0;                   // Current line index into lines_
-  int line_offset_ = 0;                 // Byte offset into lines_[row_index_]
-  bool dirty_ = false;                  // True if unsaved edits
-  bool can_edit_ = false;               // False for binary or when no file is loaded
+  std::filesystem::path path_;  // Empty means no file is open
+  std::vector<std::string> lines_{
+      ""};                 // Always at least one (possibly empty) line
+  int row_index_ = 0;      // Current line index into lines_
+  int line_offset_ = 0;    // Byte offset into lines_[row_index_]
+  bool dirty_ = false;     // True if unsaved edits
+  bool can_edit_ = false;  // False for binary or when no file is loaded
 };
 
 }  // namespace sdl
