@@ -1,57 +1,57 @@
 # editor
 
-macOS 上的 SDL3 文本编辑器：侧栏文件树、语法高亮、内置 PTY 终端。
+An SDL3 text editor for macOS: sidebar file tree, syntax highlighting, and a built-in PTY terminal.
 
-## 依赖
+## Dependencies
 
 ```bash
 brew install cmake sdl3 sdl3_ttf spdlog
 ```
 
-需要 C++20 和 Apple Clang。Makefile 默认走本地代理 `http://127.0.0.1:7897`，没有代理时：
+Requires C++20 and Apple Clang. The Makefile defaults to a local proxy at `http://127.0.0.1:7897`. Without a proxy:
 
 ```bash
 make http_proxy= https_proxy= ALL_PROXY=
 ```
 
-## 命令
+## Commands
 
 ```bash
-make          # 配置并编译到 build/editor
-make run      # 编译后启动；传参 make run ARGS=src/app.cpp
+make          # Configure and build to build/editor
+make run      # Build, then launch; pass args with make run ARGS=src/app.cpp
 make format   # clang-format src/
-make clean    # 删除 build/
+make clean    # Remove build/
 ```
 
-无参数启动打开当前目录。也可直接打开文件或目录：
+With no arguments, the editor opens the current directory. You can also open a file or folder directly:
 
 ```bash
 ./build/editor src/app.cpp
 ./build/editor .
 ```
 
-## 配置
+## Configuration
 
-`editor.conf` 会复制到 `build/`。路径相对 **build 目录**：
+`editor.conf` is copied into `build/`. Paths are relative to the **build directory**:
 
 ```
 font = ../assets/fonts/jetbrains-mono-regular.ttf
 ```
 
-仓库里还有 `jetbrains-mono-medium.ttf`。中文回退系统字体（PingFang 等）。
+The repo also ships `jetbrains-mono-medium.ttf`. CJK glyphs fall back to system fonts (PingFang, etc.).
 
-字号默认 16pt，范围 10–40。状态栏 `- 16 +` 可调，也支持 `Cmd+=` / `Cmd+-` / `Cmd+0`。
+Default font size is 16pt (range 10–40). Adjust with the status-bar `- 16 +` controls, or `Cmd+=` / `Cmd+-` / `Cmd+0`.
 
-日志写在 `logs/`。
+Logs go under `logs/`.
 
-## 快捷键
+## Shortcuts
 
-| 按键 | 作用 |
+| Key | Action |
 |---|---|
-| `Cmd+O` | 打开文件夹 |
-| `Cmd+S` | 保存 |
-| `Cmd+J` / `` Cmd+` `` / `F12` | 打开或关闭终端 |
-| `Cmd+=` / `Cmd+-` / `Cmd+0` | 放大 / 缩小 / 重置字号 |
-| `Esc` | 从终端回到编辑器 |
+| `Cmd+O` | Open folder |
+| `Cmd+S` | Save |
+| `Cmd+J` / `` Cmd+` `` / `F12` | Toggle terminal |
+| `Cmd+=` / `Cmd+-` / `Cmd+0` | Zoom in / out / reset font size |
+| `Esc` | Return focus from terminal to editor |
 
-侧栏与终端面板可拖分隔条。空侧栏点击也会打开文件夹。
+Sidebar and terminal panels have draggable splitters. Clicking an empty sidebar also opens a folder.
