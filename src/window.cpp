@@ -42,6 +42,11 @@ void Window::set_title(const char* title) {
   SDL_SetWindowTitle(window_, title);
 }
 
+void Window::show() {
+  SDL_ShowWindow(window_);
+  SDL_RaiseWindow(window_);
+}
+
 void Window::start_text_input() {
   if (!SDL_StartTextInput(window_)) {
     throw_error("SDL_StartTextInput");

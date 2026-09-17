@@ -22,9 +22,8 @@ namespace sdl {
 // draggable splitters.
 class App {
  public:
-  // `path` may be a file or a directory. When `prompt_folder` is true, a native
-  // folder picker is shown after the window opens.
-  explicit App(const std::filesystem::path& path, bool prompt_folder = false);
+  // `path` may be a file or a directory. No-arg launch uses ".".
+  explicit App(const std::filesystem::path& path);
   ~App();
   void run();
 
@@ -51,7 +50,7 @@ class App {
 
   // Rendering
   void draw();
-  void draw_tree(int line_h, int content_bottom);
+  void draw_tree(int line_h, int content_bottom);  // Sidebar file tree
   void draw_editor(int line_h, int content_bottom);
   void draw_terminal(int line_h, int term_top, int status_y);
   void toggle_terminal();
@@ -79,6 +78,8 @@ class App {
   void reload_font();
   // -1 shrink, +1 grow, 2 reset to default, 0 miss.
   int font_ui_hit(float x, float y) const;
+  SDL_FRect term_close_rect() const;
+  bool term_close_hit(float x, float y) const;
 
   // Splitters: vertical for the sidebar, horizontal for the terminal.
   enum class Split { None, Sidebar, Terminal };
@@ -118,8 +119,8 @@ class App {
 
   bool term_open_ = false;
   bool term_focus_ = false;
+  bool term_close_hover_ = false;
   bool needs_redraw_ = true;
-  bool prompt_folder_ = false;   // Show the folder picker on the first frame
   bool picking_folder_ = false;  // Native dialog is still outstanding
   std::string folder_dialog_start_;
   Uint64 caret_tick_ = 0;

@@ -13,8 +13,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string_view>
-
-#include "utf8.hpp"
+#include <vector>
 
 namespace sdl {
 
@@ -46,6 +45,60 @@ std::size_t utf8_len(unsigned char c) {
     return 4;
   }
   return 1;
+}
+
+constexpr SDL_Color kAnsi[16] = {
+    {0, 0, 0, 255},       {205, 49, 49, 255},   {13, 188, 121, 255},
+    {229, 181, 51, 255},  {36, 114, 200, 255},  {188, 63, 188, 255},
+    {17, 168, 205, 255},  {204, 204, 204, 255}, {102, 102, 102, 255},
+    {241, 76, 76, 255},   {35, 209, 139, 255},  {245, 205, 77, 255},
+    {59, 142, 234, 255},  {214, 112, 214, 255}, {41, 184, 219, 255},
+    {229, 229, 229, 255},
+};
+
+SDL_Color color_256(int n) {
+  n = std::clamp(n, 0, 255);
+  if (n < 16) {
+    return kAnsi[n];
+  }
+  if (n < 232) {
+    n -= 16;
+    const int r = n / 36;
+    const int g = (n / 6) % 6;
+    const int b = n % 6;
+    auto level = [](int v) -> Uint8 {
+      return v == 0 ? 0 : static_cast<Uint8>(55 + 40 * v);
+    };
+    return {level(r), level(g), level(b), 255};
+  }
+  const Uint8 v = static_cast<Uint8>(8 + (n - 232) * 10);
+  return {v, v, v, 255};
+}
+
+SDL_Color color_rgb(int r, int g, int b) {
+  return {static_cast<Uint8>(std::clamp(r, 0, 255)),
+          static_cast<Uint8>(std::clamp(g, 0, 255)),
+          static_cast<Uint8>(std::clamp(b, 0, 255)), 255};
+}
+
+std::vector<int> parse_csi_params(const std::string& s) {
+  std::vector<int> out;
+  int v = 0;
+  bool any = false;
+  for (char c : s) {
+    if (c == ';' || c == ':') {
+      out.push_back(any ? v : 0);
+      v = 0;
+      any = false;
+      continue;
+    }
+    if (c >= '0' && c <= '9') {
+      v = v * 10 + (c - '0');
+      any = true;
+    }
+  }
+  out.push_back(any ? v : 0);
+  return out;
 }
 
 }  // namespace
@@ -104,6 +157,7 @@ bool Terminal::start(const std::filesystem::path& cwd) {
     }
     setenv("TERM", "xterm-256color", 1);
     setenv("COLORTERM", "truecolor", 1);
+    setenv("CLICOLOR", "1", 0);
     const char* shell = std::getenv("SHELL");
     if (!shell || !*shell) {
       shell = "/bin/zsh";
@@ -118,11 +172,13 @@ bool Terminal::start(const std::filesystem::path& cwd) {
   pid_ = pid;
   const int flags = fcntl(master_, F_GETFL, 0);
   fcntl(master_, F_SETFL, flags | O_NONBLOCK);
-  lines_.assign(1, "");
+  lines_.assign(1, {});
   row_ = 0;
   col_ = 0;
   parse_ = kGround;
   pending_.clear();
+  csi_.clear();
+  reset_pen();
   resize(cols_, rows_);
   return true;
 }
@@ -240,21 +296,136 @@ void Terminal::erase_to_end() {
   }
 }
 
+void Terminal::erase_display() {
+  lines_.assign(1, {});
+  row_ = 0;
+  col_ = 0;
+}
+
+void Terminal::reset_pen() {
+  pen_fg_ = kTermFg;
+  pen_bg_ = kTermBg;
+  bold_ = false;
+  inverse_ = false;
+}
+
+SDL_Color Terminal::paint_fg() const {
+  SDL_Color c = inverse_ ? pen_bg_ : pen_fg_;
+  if (bold_) {
+    c.r = static_cast<Uint8>(c.r + (255 - c.r) / 3);
+    c.g = static_cast<Uint8>(c.g + (255 - c.g) / 3);
+    c.b = static_cast<Uint8>(c.b + (255 - c.b) / 3);
+  }
+  return c;
+}
+
+SDL_Color Terminal::paint_bg() const { return inverse_ ? pen_fg_ : pen_bg_; }
+
 void Terminal::put_utf8(std::string_view ch) {
   ensure_line();
   auto& line = lines_[static_cast<std::size_t>(row_)];
-  if (col_ > static_cast<int>(line.size())) {
-    line.append(static_cast<std::size_t>(col_) - line.size(), ' ');
+  while (static_cast<int>(line.size()) < col_) {
+    line.push_back(TermCell{" ", kTermFg, kTermBg});
   }
+  TermCell cell{std::string{ch}, paint_fg(), paint_bg()};
   if (col_ == static_cast<int>(line.size())) {
-    line.append(ch);
-    col_ += static_cast<int>(ch.size());
+    line.push_back(std::move(cell));
+  } else {
+    line[static_cast<std::size_t>(col_)] = std::move(cell);
+  }
+  ++col_;
+}
+
+void Terminal::apply_sgr(const std::vector<int>& params) {
+  if (params.empty()) {
+    reset_pen();
     return;
   }
-  const std::size_t next = utf8_next(line, static_cast<std::size_t>(col_));
-  line.replace(static_cast<std::size_t>(col_),
-               next - static_cast<std::size_t>(col_), ch);
-  col_ += static_cast<int>(ch.size());
+  for (std::size_t i = 0; i < params.size(); ++i) {
+    const int n = params[i];
+    if (n == 0) {
+      reset_pen();
+    } else if (n == 1) {
+      bold_ = true;
+    } else if (n == 22) {
+      bold_ = false;
+    } else if (n == 7) {
+      inverse_ = true;
+    } else if (n == 27) {
+      inverse_ = false;
+    } else if (n == 39) {
+      pen_fg_ = kTermFg;
+    } else if (n == 49) {
+      pen_bg_ = kTermBg;
+    } else if (n >= 30 && n <= 37) {
+      pen_fg_ = kAnsi[n - 30];
+    } else if (n >= 90 && n <= 97) {
+      pen_fg_ = kAnsi[n - 90 + 8];
+    } else if (n >= 40 && n <= 47) {
+      pen_bg_ = kAnsi[n - 40];
+    } else if (n >= 100 && n <= 107) {
+      pen_bg_ = kAnsi[n - 100 + 8];
+    } else if (n == 38 || n == 48) {
+      const bool is_fg = n == 38;
+      if (i + 1 >= params.size()) {
+        continue;
+      }
+      const int mode = params[++i];
+      SDL_Color color = is_fg ? kTermFg : kTermBg;
+      if (mode == 5 && i + 1 < params.size()) {
+        color = color_256(params[++i]);
+      } else if (mode == 2 && i + 3 < params.size()) {
+        color = color_rgb(params[i + 1], params[i + 2], params[i + 3]);
+        i += 3;
+      }
+      if (is_fg) {
+        pen_fg_ = color;
+      } else {
+        pen_bg_ = color;
+      }
+    }
+  }
+}
+
+void Terminal::apply_csi(char final) {
+  if (!csi_.empty() && csi_[0] == '?') {
+    csi_.clear();
+    return;
+  }
+  const std::vector<int> p = parse_csi_params(csi_);
+  csi_.clear();
+  const int a = p.empty() ? 0 : p[0];
+  if (final == 'm') {
+    apply_sgr(p);
+    return;
+  }
+  if (final == 'K') {
+    if (a == 2) {
+      ensure_line();
+      lines_[static_cast<std::size_t>(row_)].clear();
+    } else if (a == 1) {
+      ensure_line();
+      auto& line = lines_[static_cast<std::size_t>(row_)];
+      const int n = std::min(col_, static_cast<int>(line.size()));
+      for (int i = 0; i < n; ++i) {
+        line[static_cast<std::size_t>(i)] = TermCell{" ", kTermFg, kTermBg};
+      }
+    } else {
+      erase_to_end();
+    }
+    return;
+  }
+  if (final == 'J' && (a == 2 || a == 3)) {
+    erase_display();
+    return;
+  }
+  if (final == 'C') {
+    col_ += std::max(1, a == 0 ? 1 : a);
+    return;
+  }
+  if (final == 'D') {
+    col_ = std::max(0, col_ - std::max(1, a == 0 ? 1 : a));
+  }
 }
 
 void Terminal::feed(const char* data, std::size_t size) {
@@ -267,6 +438,7 @@ void Terminal::feed(const char* data, std::size_t size) {
     if (parse_ == kEsc) {
       if (c == '[') {
         parse_ = kCsi;
+        csi_.clear();
         ++i;
         continue;
       }
@@ -280,18 +452,12 @@ void Terminal::feed(const char* data, std::size_t size) {
       continue;
     }
     if (parse_ == kCsi) {
-      // CSI ends on a byte in '@'..'~'. Only EL (K) and CUF/CUB (C/D) matter.
+      // CSI ends on a byte in '@'..'~'. SGR (m) carries zsh/ls colors.
       if (c >= 0x40 && c <= 0x7E) {
-        if (c == 'K') {
-          erase_to_end();
-        } else if (c == 'C') {
-          ++col_;
-        } else if (c == 'D' && col_ > 0) {
-          col_ =
-              static_cast<int>(utf8_prev(lines_[static_cast<std::size_t>(row_)],
-                                         static_cast<std::size_t>(col_)));
-        }
+        apply_csi(static_cast<char>(c));
         parse_ = kGround;
+      } else if (csi_.size() < 64) {
+        csi_.push_back(static_cast<char>(c));
       }
       ++i;
       continue;
@@ -322,11 +488,8 @@ void Terminal::feed(const char* data, std::size_t size) {
       continue;
     }
     if (c == '\b') {
-      ensure_line();
       if (col_ > 0) {
-        col_ =
-            static_cast<int>(utf8_prev(lines_[static_cast<std::size_t>(row_)],
-                                       static_cast<std::size_t>(col_)));
+        --col_;
       }
       ++i;
       continue;

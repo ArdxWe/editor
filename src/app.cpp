@@ -23,8 +23,6 @@ constexpr SDL_Color kTreeFile{108, 104, 96, 255};
 constexpr SDL_Color kTreeBg{242, 241, 237, 255};
 constexpr SDL_Color kTreeActive{226, 221, 210, 255};
 constexpr SDL_Color kStatusBg{245, 244, 241, 255};
-constexpr SDL_Color kTermBg{245, 244, 241, 255};
-constexpr SDL_Color kTermFg{45, 43, 38, 255};
 constexpr SDL_Color kAccent{47, 108, 196, 255};
 constexpr int kPad = 12;
 constexpr int kTreePadX = 10;
@@ -48,6 +46,10 @@ Uint32 pack_color(SDL_Color color) {
   return (static_cast<Uint32>(color.r) << 24) |
          (static_cast<Uint32>(color.g) << 16) |
          (static_cast<Uint32>(color.b) << 8) | static_cast<Uint32>(color.a);
+}
+
+bool color_eq(SDL_Color a, SDL_Color b) {
+  return a.r == b.r && a.g == b.g && a.b == b.b;
 }
 
 bool event_needs_redraw(Uint32 type) {
@@ -117,8 +119,7 @@ bool file_inside_root(const std::filesystem::path& file,
 
 }  // namespace
 
-App::App(const std::filesystem::path& path, bool prompt_folder)
-    : context_(SDL_INIT_VIDEO) {
+App::App(const std::filesystem::path& path) : context_(SDL_INIT_VIDEO) {
   std::error_code ec;
   auto abs = std::filesystem::absolute(path, ec);
   if (ec) {
@@ -156,7 +157,6 @@ App::App(const std::filesystem::path& path, bool prompt_folder)
   term_h_ = font_.line_skip() * 10 + kPad;
   cursor_ew_ = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_EW_RESIZE);
   cursor_ns_ = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_NS_RESIZE);
-  prompt_folder_ = prompt_folder;
   LOG_INFO("open {} as {}", abs.string(), is_dir ? "folder" : "file");
   LOG_DEBUG("dpi={:.2f} font_pt={} line_skip={}", dpi_scale(), font_pt_,
             font_.line_skip());
@@ -174,10 +174,9 @@ App::~App() {
 }
 
 void App::run() {
-  if (prompt_folder_) {
-    prompt_folder_ = false;
-    show_open_folder_dialog();
-  }
+  draw();
+  needs_redraw_ = false;
+  window_.show();
   bool running = true;
   int last_blink = -1;
   while (running) {
@@ -435,7 +434,12 @@ void App::handle_event(const SDL_Event& event) {
       drag_moved_ = true;
       needs_redraw_ = true;
     } else {
-      const Split next = hit_split(x, y);
+      const bool close_hot = term_close_hit(x, y);
+      if (close_hot != term_close_hover_) {
+        term_close_hover_ = close_hot;
+        needs_redraw_ = true;
+      }
+      const Split next = close_hot ? Split::None : hit_split(x, y);
       if (next != hover_) {
         hover_ = next;
         set_split_cursor(next);
@@ -499,6 +503,13 @@ void App::handle_event(const SDL_Event& event) {
       } else {
         set_font_size(font_pt_ + font_hit);
       }
+      return;
+    }
+    if (term_close_hit(event.button.x, event.button.y)) {
+      term_open_ = false;
+      term_focus_ = false;
+      term_close_hover_ = false;
+      LOG_DEBUG("terminal closed");
       return;
     }
     const Split split = hit_split(event.button.x, event.button.y);
@@ -653,6 +664,9 @@ void App::save() {
 void App::toggle_terminal() {
   term_open_ = !term_open_;
   term_focus_ = term_open_;
+  if (!term_open_) {
+    term_close_hover_ = false;
+  }
   LOG_DEBUG("terminal {} focus={}", term_open_ ? "open" : "closed",
             term_focus_);
   if (term_open_ && !terminal_.running()) {
@@ -806,6 +820,23 @@ int App::font_ui_hit(float x, float y) const {
   return 2;
 }
 
+SDL_FRect App::term_close_rect() const {
+  if (!term_open_) {
+    return {};
+  }
+  const auto out = renderer_.output_size();
+  const int line_h = std::max(1, font_.line_skip());
+  const int tab_h = line_h + 8;
+  const float w = static_cast<float>(tab_h);
+  return {static_cast<float>(out.w) - static_cast<float>(kPad) - w,
+          static_cast<float>(terminal_top()), w, static_cast<float>(tab_h)};
+}
+
+bool App::term_close_hit(float x, float y) const {
+  const SDL_FRect r = term_close_rect();
+  return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+}
+
 App::Split App::hit_split(float x, float y) const {
   const int hit = split_hit_px();
   const int status_y = status_bar_top();
@@ -850,6 +881,7 @@ void App::apply_split_drag(float x, float y) {
     if (term_open_) {
       term_open_ = false;
       term_focus_ = false;
+      term_close_hover_ = false;
     }
     return;
   }
@@ -904,6 +936,7 @@ int App::byte_at_x(const std::string& line, float x) const {
   return static_cast<int>(left);
 }
 
+// Left sidebar: folder header, then the visible rows of the file tree.
 void App::draw_tree(int line_h, int content_bottom) {
   const int side = sidebar_width();
   renderer_.set_draw_color(kTreeBg.r, kTreeBg.g, kTreeBg.b, 255);
@@ -911,9 +944,11 @@ void App::draw_tree(int line_h, int content_bottom) {
                       static_cast<float>(content_bottom)};
   renderer_.fill_rect(bar);
 
+  // Keep names from painting into the editor.
   const SDL_Rect clip{0, 0, side, content_bottom};
   renderer_.set_clip(&clip);
 
+  // Header: folder name, then a hairline. Rows start at header_h.
   std::string root_name = explorer_.root().filename().string();
   if (root_name.empty()) {
     root_name = explorer_.root().string();
@@ -931,6 +966,7 @@ void App::draw_tree(int line_h, int content_bottom) {
   stroke_h(renderer_, 8.f, static_cast<float>(header_h - 5),
            static_cast<float>(std::max(0, side - 16)));
 
+  // Visible slice of explorer_.rows(), scrolled by tree_scroll_.
   const int chevron_w = std::max(font_.measure("▸ "), font_.measure("▾ ")) + 4;
   const auto& rows = explorer_.rows();
   const int vis = std::max(1, (content_bottom - header_h) / line_h);
@@ -944,6 +980,7 @@ void App::draw_tree(int line_h, int content_bottom) {
     const float x = static_cast<float>(kTreePadX + row.depth * kTreeIndent);
     const SDL_Color bg = row.active ? kTreeActive : kTreeBg;
     if (row.active) {
+      // Inset pill + left accent for the open file.
       renderer_.set_draw_color(kTreeActive.r, kTreeActive.g, kTreeActive.b,
                                255);
       const SDL_FRect hi{6.f, y, static_cast<float>(std::max(0, side - 12)),
@@ -954,12 +991,14 @@ void App::draw_tree(int line_h, int content_bottom) {
           SDL_FRect{6.f, y, 2.f, static_cast<float>(line_h - 1)});
     }
     if (row.is_dir) {
+      // ▾ expanded, ▸ collapsed. Files leave this slot empty.
       const char* mark = row.expanded ? "▾" : "▸";
       if (const Texture* chev = cached_texture(mark, kLineNo, bg)) {
         const SDL_FRect dest{x, y + 1.f, chev->width(), chev->height()};
         renderer_.copy(*chev, nullptr, &dest);
       }
     }
+    // Names share the same x after the chevron slot so files align with dirs.
     const float name_x = x + static_cast<float>(chevron_w);
     const int max_w = side - static_cast<int>(name_x) - kTreePadX;
     std::string name = row.name;
@@ -977,7 +1016,7 @@ void App::draw_tree(int line_h, int content_bottom) {
   }
   renderer_.set_clip(nullptr);
   stroke_v(renderer_, static_cast<float>(side - 1), 0.f,
-           static_cast<float>(content_bottom));
+           static_cast<float>(content_bottom));  // Divider before the editor.
 }
 
 void App::draw_editor(int line_h, int content_bottom) {
@@ -1086,6 +1125,14 @@ void App::draw_terminal(int line_h, int term_top, int status_y) {
                                     tab->width(), 2.f});
     }
   }
+  const SDL_FRect close = term_close_rect();
+  const SDL_Color close_fg = term_close_hover_ ? kTree : kStatus;
+  if (const Texture* x = cached_texture("×", close_fg, kTermBg)) {
+    const SDL_FRect dest{close.x + (close.w - x->width()) * 0.5f,
+                         close.y + (close.h - x->height()) * 0.5f, x->width(),
+                         x->height()};
+    renderer_.copy(*x, nullptr, &dest);
+  }
   stroke_h(renderer_, 0.f, static_cast<float>(term_top + tab_h),
            static_cast<float>(out.w));
 
@@ -1112,20 +1159,45 @@ void App::draw_terminal(int line_h, int term_top, int status_y) {
     }
     const float y = static_cast<float>(body_top + 4 + i * line_h);
     const auto& line = lines[static_cast<std::size_t>(index)];
-    if (!line.empty()) {
-      if (const Texture* tex = cached_texture(line.c_str(), kTermFg, kTermBg)) {
-        const SDL_FRect dest{static_cast<float>(kPad), y, tex->width(),
-                             tex->height()};
-        renderer_.copy(*tex, nullptr, &dest);
+    float x = static_cast<float>(kPad);
+    std::size_t at = 0;
+    while (at < line.size()) {
+      std::size_t end = at + 1;
+      while (end < line.size() && color_eq(line[end].fg, line[at].fg) &&
+             color_eq(line[end].bg, line[at].bg)) {
+        ++end;
       }
+      std::string run;
+      for (std::size_t k = at; k < end; ++k) {
+        run += line[k].ch;
+      }
+      const SDL_Color fg = line[at].fg;
+      const SDL_Color bg = line[at].bg;
+      if (!color_eq(bg, kTermBg)) {
+        const int run_w = font_.measure(run.c_str());
+        renderer_.set_draw_color(bg.r, bg.g, bg.b, 255);
+        renderer_.fill_rect(SDL_FRect{x, y, static_cast<float>(run_w),
+                                      static_cast<float>(line_h)});
+      }
+      if (const Texture* tex = cached_texture(run.c_str(), fg, bg)) {
+        const SDL_FRect dest{x, y, tex->width(), tex->height()};
+        renderer_.copy(*tex, nullptr, &dest);
+        x += tex->width();
+      } else {
+        x += static_cast<float>(font_.measure(run.c_str()));
+      }
+      at = end;
     }
     if (term_focus_ && index == terminal_.cursor_row() && caret_visible()) {
-      const std::size_t col =
-          static_cast<std::size_t>(std::max(0, terminal_.cursor_col()));
-      const int prefix_w =
-          col == 0 || line.empty()
-              ? 0
-              : font_.measure(line.c_str(), std::min(col, line.size()));
+      const int caret_col = std::max(0, terminal_.cursor_col());
+      int prefix_w = 0;
+      for (int c = 0; c < caret_col && c < static_cast<int>(line.size()); ++c) {
+        prefix_w += font_.measure(line[static_cast<std::size_t>(c)].ch.c_str());
+      }
+      if (caret_col > static_cast<int>(line.size())) {
+        prefix_w += (caret_col - static_cast<int>(line.size())) *
+                    std::max(1, font_.measure("M"));
+      }
       const SDL_FRect caret{static_cast<float>(kPad + prefix_w), y, 2.f,
                             static_cast<float>(line_h)};
       renderer_.set_draw_color(kAccent.r, kAccent.g, kAccent.b, 255);

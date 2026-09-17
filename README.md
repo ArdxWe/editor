@@ -23,7 +23,7 @@ make format   # clang-format src/
 make clean    # 删除 build/
 ```
 
-无参数启动会打开当前目录，并可弹出系统文件夹选择器。也可直接打开文件或目录：
+无参数启动打开当前目录。也可直接打开文件或目录：
 
 ```bash
 ./build/editor src/app.cpp

@@ -8,12 +8,11 @@
 
 int main(int argc, char* argv[]) {
   sdl::init_logging();
-  const bool prompt_folder = argc < 2;
-  const char* path = prompt_folder ? "." : argv[1];
-  LOG_INFO("start path={} prompt_folder={}", path, prompt_folder);
+  const char* path = argc < 2 ? "." : argv[1];
+  LOG_INFO("start path={}", path);
 
   try {
-    sdl::App app{path, prompt_folder};
+    sdl::App app{path};
     app.run();
     LOG_INFO("exit");
   } catch (const std::exception& ex) {

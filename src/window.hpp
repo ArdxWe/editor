@@ -22,6 +22,7 @@ class Window {
 
   Size size() const;
   void set_title(const char* title);
+  void show();  // Visible + raised so a terminal launch is not buried
   void start_text_input();
 
   SDL_Window* get() const { return window_; }
