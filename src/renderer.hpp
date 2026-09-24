@@ -23,7 +23,7 @@ class Renderer {
     int h = 0;
   };
 
-  void set_draw_color(Uint8 r, Uint8 g, Uint8 b, Uint8 a) const;
+  void set_draw_color(Uint8 red, Uint8 green, Uint8 blue, Uint8 alpha) const;
   void clear() const;
   void fill_rect(const SDL_FRect& rect) const;
   void set_clip(const SDL_Rect* rect) const;

@@ -34,8 +34,9 @@ Renderer& Renderer::operator=(Renderer&& other) noexcept {
   return *this;
 }
 
-void Renderer::set_draw_color(Uint8 r, Uint8 g, Uint8 b, Uint8 a) const {
-  SDL_SetRenderDrawColor(renderer_, r, g, b, a);
+void Renderer::set_draw_color(Uint8 red, Uint8 green, Uint8 blue,
+                              Uint8 alpha) const {
+  SDL_SetRenderDrawColor(renderer_, red, green, blue, alpha);
 }
 
 void Renderer::clear() const { SDL_RenderClear(renderer_); }

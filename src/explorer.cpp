@@ -68,12 +68,15 @@ void Explorer::toggle(int visible_index) {
 }
 
 void Explorer::load_children(Node& node) const {
+  // Lazy: only directories, and only once until toggle() clears loaded.
   if (!node.is_dir || node.loaded) {
     return;
   }
+
   node.loaded = true;
   node.children.clear();
 
+  // skip_permission_denied keeps one unreadable entry from aborting the walk.
   std::error_code ec;
   for (const auto& entry : std::filesystem::directory_iterator(
            node.path,
@@ -81,14 +84,18 @@ void Explorer::load_children(Node& node) const {
     if (ec) {
       break;
     }
+
     const auto name = entry.path().filename().string();
     if (name == "." || name == ".." || ignored(name)) {
       continue;
     }
+
     std::error_code type_ec;
     Node child;
     child.path = normalized(entry.path());
     child.name = name;
+
+    // Prefer the iterator's type; fall back to a fresh status check.
     child.is_dir = entry.is_directory(type_ec);
     if (type_ec) {
       child.is_dir = std::filesystem::is_directory(child.path, type_ec);
@@ -96,9 +103,11 @@ void Explorer::load_children(Node& node) const {
     if (type_ec) {
       continue;
     }
+
     node.children.push_back(std::move(child));
   }
 
+  // Directories first, then files; each group sorted by name.
   std::sort(node.children.begin(), node.children.end(),
             [](const Node& a, const Node& b) {
               if (a.is_dir != b.is_dir) {

@@ -138,14 +138,16 @@ std::size_t Font::fit(const char* text, int max_width,
   return bytes;
 }
 
-SDL_Surface* Font::render(const char* text, SDL_Color fg, SDL_Color bg) const {
+SDL_Surface* Font::render(const char* text, SDL_Color foreground,
+                          SDL_Color background) const {
   if (!text || !*text) {
     return nullptr;
   }
-  if (SDL_Surface* lcd = TTF_RenderText_LCD(font_, text, 0, fg, bg)) {
+  if (SDL_Surface* lcd =
+          TTF_RenderText_LCD(font_, text, 0, foreground, background)) {
     return lcd;
   }
-  return TTF_RenderText_Blended(font_, text, 0, fg);
+  return TTF_RenderText_Blended(font_, text, 0, foreground);
 }
 
 }  // namespace sdl
