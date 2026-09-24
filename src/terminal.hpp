@@ -12,10 +12,12 @@ namespace sdl {
 inline constexpr SDL_Color kTermFg{48, 46, 42, 255};
 inline constexpr SDL_Color kTermBg{236, 234, 228, 255};
 
+// One screen cell: a UTF-8 glyph plus the colors from the active SGR pen.
+// Lines are vectors of these so zsh/ls colors can be drawn run-by-run.
 struct TermCell {
-  std::string ch;
-  SDL_Color fg = kTermFg;
-  SDL_Color bg = kTermBg;
+  std::string ch;             // Usually one code point; may be multi-byte UTF-8
+  SDL_Color fg = kTermFg;     // Foreground (text)
+  SDL_Color bg = kTermBg;     // Background (drawn when not the default)
 };
 
 class Terminal {

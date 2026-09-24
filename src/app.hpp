@@ -18,6 +18,9 @@
 
 namespace sdl {
 
+// Outlives App so a late folder-dialog callback cannot touch a destroyed editor.
+struct FolderPick;
+
 // Top-level editor: file explorer, text view, PTY terminal, status bar, and
 // draggable splitters.
 class App {
@@ -44,6 +47,7 @@ class App {
   bool open_file(const std::filesystem::path& path);
   bool open_folder(const std::filesystem::path& path);
   void show_open_folder_dialog();
+  void apply_folder_pick();  // Main thread only; dialog callback just queues
   static void folder_dialog_cb(void* userdata, const char* const* filelist,
                                int filter);
   int ask_unsaved();  // Save / Don't Save / Cancel
@@ -88,6 +92,9 @@ class App {
   void apply_split_drag(float x, float y);
   int byte_at_x(const std::string& line, float x) const;
   const Texture* cached_texture(const char* text, SDL_Color fg, SDL_Color bg);
+  // One GPU texture per editor line, instead of one per syntax token.
+  const Texture* cached_editor_line(const std::string& line, SDL_Color bg,
+                                    const std::vector<Token>& tokens);
 
   Context context_;
   TtfContext ttf_;
@@ -122,11 +129,13 @@ class App {
   bool term_close_hover_ = false;
   bool needs_redraw_ = true;
   bool picking_folder_ = false;  // Native dialog is still outstanding
+  std::shared_ptr<FolderPick> folder_pick_;
   std::string folder_dialog_start_;
   Uint64 caret_tick_ = 0;
   Uint32 cache_stamp_ = 0;  // Bumped each frame; used to age the glyph cache
   std::string last_title_;
   std::vector<std::unique_ptr<CachedText>> text_cache_;
+  std::vector<std::unique_ptr<CachedText>> line_cache_;
 };
 
 }  // namespace sdl

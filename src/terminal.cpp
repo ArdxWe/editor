@@ -1,6 +1,7 @@
 #include "terminal.hpp"
 
 #include <fcntl.h>
+#include <poll.h>
 #include <signal.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
@@ -185,10 +186,25 @@ bool Terminal::start(const std::filesystem::path& cwd) {
 
 void Terminal::stop() {
   if (pid_ > 0) {
-    kill(static_cast<pid_t>(pid_), SIGHUP);
-    int status = 0;
-    waitpid(static_cast<pid_t>(pid_), &status, 0);
+    const pid_t pid = static_cast<pid_t>(pid_);
     pid_ = -1;
+    kill(pid, SIGHUP);
+    int status = 0;
+    bool reaped = false;
+    // Give the shell a moment to exit, then SIGKILL so quit cannot hang.
+    for (int i = 0; i < 50; ++i) {
+      const pid_t got = waitpid(pid, &status, WNOHANG);
+      if (got == pid || (got < 0 && errno != EINTR)) {
+        reaped = true;
+        break;
+      }
+      usleep(10 * 1000);
+    }
+    if (!reaped) {
+      kill(pid, SIGKILL);
+      while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {
+      }
+    }
   }
   if (master_ >= 0) {
     close(master_);
@@ -201,15 +217,27 @@ void Terminal::write(const char* data, std::size_t size) {
     return;
   }
   std::size_t off = 0;
+  int waits = 0;
   while (off < size) {
     const ssize_t n = ::write(master_, data + off, size - off);
-    if (n < 0) {
-      if (errno == EAGAIN || errno == EINTR) {
-        continue;
-      }
-      break;
+    if (n > 0) {
+      off += static_cast<std::size_t>(n);
+      waits = 0;
+      continue;
     }
-    off += static_cast<std::size_t>(n);
+    if (n < 0 && errno == EINTR) {
+      continue;
+    }
+    // PTY buffer full: wait briefly, then drop the rest instead of spinning.
+    if (n < 0 && errno == EAGAIN && waits < 4) {
+      ++waits;
+      pollfd pfd{};
+      pfd.fd = master_;
+      pfd.events = POLLOUT;
+      ::poll(&pfd, 1, 5);
+      continue;
+    }
+    break;
   }
 }
 

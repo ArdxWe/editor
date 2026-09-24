@@ -13,7 +13,13 @@ file(GLOB editor_src CONFIGURE_DEPENDS src/*.cpp)
 add_executable(editor ${editor_src})
 target_include_directories(editor PRIVATE src)
 target_link_libraries(editor PRIVATE spdlog::spdlog SDL3_ttf::SDL3_ttf SDL3::SDL3)
-target_compile_options(editor PRIVATE -Wall -Wextra -Wpedantic)
+target_compile_options(editor PRIVATE
+    -Wall -Wextra -Wpedantic
+    $<$<CONFIG:Release>:-O3>
+    $<$<CONFIG:Release>:-flto>)
+target_link_options(editor PRIVATE
+    $<$<CONFIG:Release>:-flto>
+    $<$<CONFIG:Release>:-Wl,-dead_strip>)
 
 add_custom_command(TARGET editor POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different

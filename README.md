@@ -17,7 +17,8 @@ make http_proxy= https_proxy= ALL_PROXY=
 ## Commands
 
 ```bash
-make          # Configure and build to build/editor
+make          # Release build (-O3 -flto) to build/editor
+make BUILD_TYPE=Debug
 make run      # Build, then launch; pass args with make run ARGS=src/app.cpp
 make format   # clang-format src/
 make clean    # Remove build/

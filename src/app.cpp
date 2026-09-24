@@ -1,6 +1,8 @@
 #include "app.hpp"
 
 #include <algorithm>
+#include <mutex>
+#include <optional>
 #include <string>
 
 #include "log.hpp"
@@ -30,7 +32,8 @@ constexpr int kTreeIndent = 14;
 constexpr int kFontPtMin = 10;
 constexpr int kFontPtMax = 40;
 constexpr int kFontPtDefault = 16;
-constexpr std::size_t kTextCacheLimit = 2048;
+constexpr std::size_t kTextCacheLimit = 256;
+constexpr std::size_t kLineCacheLimit = 96;
 
 void stroke_h(const Renderer& renderer, float x, float y, float w) {
   renderer.set_draw_color(kHair.r, kHair.g, kHair.b, 255);
@@ -119,7 +122,15 @@ bool file_inside_root(const std::filesystem::path& file,
 
 }  // namespace
 
-App::App(const std::filesystem::path& path) : context_(SDL_INIT_VIDEO) {
+struct FolderPick {
+  std::mutex mu;
+  bool alive = true;
+  bool ready = false;
+  std::optional<std::string> path;
+};
+
+App::App(const std::filesystem::path& path)
+    : context_(SDL_INIT_VIDEO), folder_pick_(std::make_shared<FolderPick>()) {
   std::error_code ec;
   auto abs = std::filesystem::absolute(path, ec);
   if (ec) {
@@ -165,6 +176,10 @@ App::App(const std::filesystem::path& path) : context_(SDL_INIT_VIDEO) {
 }
 
 App::~App() {
+  if (folder_pick_) {
+    std::lock_guard lock(folder_pick_->mu);
+    folder_pick_->alive = false;
+  }
   if (cursor_ew_) {
     SDL_DestroyCursor(cursor_ew_);
   }
@@ -180,6 +195,7 @@ void App::run() {
   bool running = true;
   int last_blink = -1;
   while (running) {
+    apply_folder_pick();
     SDL_Event event{};
     if (term_open_ && terminal_.poll()) {
       needs_redraw_ = true;
@@ -203,6 +219,7 @@ void App::run() {
     if (!running) {
       break;
     }
+    apply_folder_pick();
 
     const int blink = caret_visible() ? 1 : 0;
     if (blink != last_blink) {
@@ -255,16 +272,113 @@ const Texture* App::cached_texture(const char* text, SDL_Color fg,
   }
   Surface surface{raw};
   if (text_cache_.size() >= kTextCacheLimit) {
+    auto victim = text_cache_.end();
     for (auto it = text_cache_.begin(); it != text_cache_.end(); ++it) {
       if ((*it)->stamp != cache_stamp_) {
-        text_cache_.erase(it);
+        victim = it;
         break;
       }
     }
+    if (victim == text_cache_.end()) {
+      victim = text_cache_.begin();
+    }
+    text_cache_.erase(victim);
   }
   text_cache_.push_back(std::make_unique<CachedText>(CachedText{
       text, packed_fg, packed_bg, cache_stamp_, Texture{renderer_, surface}}));
   return &text_cache_.back()->texture;
+}
+
+const Texture* App::cached_editor_line(const std::string& line, SDL_Color bg,
+                                       const std::vector<Token>& tokens) {
+  if (line.empty()) {
+    return nullptr;
+  }
+  // Key is the text plus token kinds, so a block comment and normal code
+  // that share the same characters do not reuse the wrong colors.
+  std::string key;
+  key.reserve(line.size() + tokens.size() + 4);
+  key.push_back(static_cast<char>(bg.r));
+  key.push_back(static_cast<char>(bg.g));
+  key.push_back(static_cast<char>(bg.b));
+  key.append(line);
+  for (const Token& token : tokens) {
+    key.push_back(static_cast<char>(token.kind));
+  }
+  const Uint32 packed_bg = pack_color(bg);
+  for (auto& entry : line_cache_) {
+    if (entry->bg == packed_bg && entry->text == key) {
+      entry->stamp = cache_stamp_;
+      return &entry->texture;
+    }
+  }
+
+  struct Piece {
+    SDL_Surface* surface = nullptr;
+    int width = 0;
+  };
+  std::vector<Piece> pieces;
+  int total_w = 0;
+  int height = 0;
+  for (const Token& token : tokens) {
+    if (token.end <= token.begin || token.begin >= line.size()) {
+      continue;
+    }
+    const std::size_t n = std::min(token.end, line.size()) - token.begin;
+    const std::string piece = line.substr(token.begin, n);
+    SDL_Surface* raw = font_.render(piece.c_str(), token_color(token.kind), bg);
+    if (!raw) {
+      total_w += font_.measure(piece.c_str());
+      continue;
+    }
+    pieces.push_back(Piece{raw, raw->w});
+    total_w += raw->w;
+    height = std::max(height, raw->h);
+  }
+  auto discard = [&]() {
+    for (Piece& piece : pieces) {
+      SDL_DestroySurface(piece.surface);
+    }
+  };
+  if (pieces.empty() || total_w <= 0 || height <= 0) {
+    discard();
+    return nullptr;
+  }
+
+  SDL_Surface* raw = SDL_CreateSurface(total_w, height, SDL_PIXELFORMAT_ARGB8888);
+  if (!raw) {
+    discard();
+    return nullptr;
+  }
+  const SDL_Rect full{0, 0, total_w, height};
+  SDL_FillSurfaceRect(raw, &full, SDL_MapSurfaceRGBA(raw, bg.r, bg.g, bg.b, 255));
+  int x = 0;
+  for (Piece& piece : pieces) {
+    SDL_Rect dest{x, 0, piece.width, piece.surface->h};
+    SDL_BlitSurface(piece.surface, nullptr, raw, &dest);
+    x += piece.width;
+    SDL_DestroySurface(piece.surface);
+    piece.surface = nullptr;
+  }
+
+  Surface surface{raw};
+  if (line_cache_.size() >= kLineCacheLimit) {
+    auto victim = line_cache_.end();
+    for (auto it = line_cache_.begin(); it != line_cache_.end(); ++it) {
+      if ((*it)->stamp != cache_stamp_) {
+        victim = it;
+        break;
+      }
+    }
+    if (victim == line_cache_.end()) {
+      victim = line_cache_.begin();
+    }
+    line_cache_.erase(victim);
+  }
+  line_cache_.push_back(std::make_unique<CachedText>(
+      CachedText{std::move(key), 0, packed_bg, cache_stamp_,
+                 Texture{renderer_, surface}}));
+  return &line_cache_.back()->texture;
 }
 
 void App::note_edit() {
@@ -374,24 +488,49 @@ void App::show_open_folder_dialog() {
   picking_folder_ = true;
   folder_dialog_start_ = explorer_.root().string();
   LOG_DEBUG("folder dialog from {}", folder_dialog_start_);
+  // Callback may run on another thread. The shared_ptr keeps FolderPick alive
+  // if App is destroyed before the dialog returns.
+  auto* hold = new std::shared_ptr<FolderPick>(folder_pick_);
   SDL_ShowOpenFolderDialog(
-      &App::folder_dialog_cb, this, window_.get(),
+      &App::folder_dialog_cb, hold, window_.get(),
       folder_dialog_start_.empty() ? nullptr : folder_dialog_start_.c_str(),
       false);
 }
 
 void App::folder_dialog_cb(void* userdata, const char* const* filelist, int) {
-  auto* app = static_cast<App*>(userdata);
-  if (!app) {
-    return;
+  auto* hold = static_cast<std::shared_ptr<FolderPick>*>(userdata);
+  if (hold && *hold) {
+    std::lock_guard lock((*hold)->mu);
+    if ((*hold)->alive) {
+      (*hold)->ready = true;
+      if (filelist && filelist[0]) {
+        (*hold)->path = filelist[0];
+      } else {
+        (*hold)->path.reset();
+      }
+    }
   }
-  app->picking_folder_ = false;
-  if (!filelist || !filelist[0]) {
+  delete hold;
+}
+
+void App::apply_folder_pick() {
+  std::optional<std::string> path;
+  {
+    std::lock_guard lock(folder_pick_->mu);
+    if (!folder_pick_->ready) {
+      return;
+    }
+    path = std::move(folder_pick_->path);
+    folder_pick_->ready = false;
+    folder_pick_->path.reset();
+  }
+  picking_folder_ = false;
+  if (!path || path->empty()) {
     LOG_DEBUG("folder dialog cancelled");
     return;
   }
-  LOG_DEBUG("folder dialog picked {}", filelist[0]);
-  app->open_folder(filelist[0]);
+  LOG_DEBUG("folder dialog picked {}", *path);
+  open_folder(*path);
 }
 
 void App::handle_event(const SDL_Event& event) {
@@ -791,6 +930,7 @@ void App::reload_font() {
   font_ =
       Font{config_.font.c_str(), static_cast<float>(font_pt_) * dpi_scale()};
   text_cache_.clear();
+  line_cache_.clear();
   ++cache_stamp_;
   needs_redraw_ = true;
   ensure_cursor_visible();
@@ -1074,20 +1214,9 @@ void App::draw_editor(int line_h, int content_bottom) {
     float x = static_cast<float>(left + gutter);
     const auto tokens = highlighter_.tokens(index, line, lines);
     const SDL_Color text_bg = index == doc_.row() ? kLineHi : kPage;
-    for (const Token& token : tokens) {
-      if (token.end <= token.begin || token.begin >= line.size()) {
-        continue;
-      }
-      const std::size_t n = std::min(token.end, line.size()) - token.begin;
-      const std::string piece = line.substr(token.begin, n);
-      if (const Texture* tex =
-              cached_texture(piece.c_str(), token_color(token.kind), text_bg)) {
-        const SDL_FRect dest{x, y, tex->width(), tex->height()};
-        renderer_.copy(*tex, nullptr, &dest);
-        x += tex->width();
-      } else if (!piece.empty()) {
-        x += static_cast<float>(font_.measure(piece.c_str()));
-      }
+    if (const Texture* tex = cached_editor_line(line, text_bg, tokens)) {
+      const SDL_FRect dest{x, y, tex->width(), tex->height()};
+      renderer_.copy(*tex, nullptr, &dest);
     }
 
     if (index == doc_.row() && caret_visible()) {
