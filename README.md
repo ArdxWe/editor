@@ -56,3 +56,13 @@ Logs go under `logs/`.
 | `Esc` | Return focus from terminal to editor |
 
 Sidebar and terminal panels have draggable splitters. Clicking an empty sidebar also opens a folder.
+
+## Later
+
+Editing comes first. Tree-sitter, LSP, and completion wait until these exist.
+
+1. Undo / redo (`Cmd+Z`, `Cmd+Shift+Z`).
+2. Selection, copy, cut, and paste (`Cmd+C` / `Cmd+X` / `Cmd+V`), including newlines.
+3. Find in the current file (`Cmd+F`, `Cmd+G` for the next match).
+4. Tabs, so opening a file does not replace the one on screen. A dot on a dirty tab is enough.
+5. A slightly better terminal: `clear` and simple cursor movement. A full VT (so `vim` / `less` work) is a separate project.
